@@ -262,6 +262,7 @@ return function(game)
  -- Who died, doing what, carrying what, and to whom; and what the freight
 -- fleet did with its time. Printed each hour and summed at the end.
  local lossLog,lossAll={},{}
+ local releaseLog={}
  local tripLog={jobs={},trips=0,volume=0,vols={}}
  do
   local death=History.death
@@ -277,6 +278,12 @@ return function(game)
    return death(u_,r,clock,area,killer,...)
   end
   local Tasks=require('src.tasks');local choose=Tasks.choose;local seen=setmetatable({},{__mode='k'})
+  local release=Tasks.release
+  Tasks.release=function(u_,r,reason,...)
+   local t=r and (r.task or r.suspendedTask)
+   if t and t.kind=='transport' then local k=(t.phase or '?')..': '..tostring(reason);releaseLog[k]=(releaseLog[k] or 0)+1 end
+   return release(u_,r,reason,...)
+  end
   Tasks.choose=function(u_,r,...)
    local t=choose(u_,r,...)
    if t and seen[r]~=t then
@@ -350,6 +357,7 @@ return function(game)
   do
    local W=require('src.work_preferences');local def=Tasks.definitions.transport
    local per,offerWhy,looked={}, {},0
+   local eligibleOffers={}
    local function inc(t,k) t[k]=(t[k] or 0)+1 end
    local avail={} for id,o in pairs(Tasks.state(u).offers) do if o.kind=='transport' and o.state=='available' then avail[#avail+1]=o end end
    for _,r in pairs(u.npcs or {}) do
@@ -362,10 +370,13 @@ return function(game)
       local ok=0
       for _,o in ipairs(avail) do
        looked=looked+1
-       if (o.readyAt or 0)>u.clock or not Tasks.npcMayClaim(u,o,u.clock) then inc(offerWhy,'not claimable yet')
+       if (o.readyAt or 0)>u.clock then inc(offerWhy,'cooling down after a release')
+       elseif not Tasks.npcMayClaim(u,o,u.clock) then inc(offerWhy,(o.npcClaimAt or 0)>u.clock and 'in its public listing window' or 'held for the player')
        else
         local why={}
-        if def.eligible(u,r,o,node,u.clock,why) then ok=ok+1;inc(offerWhy,'eligible') else inc(offerWhy,why.reason or '?') end
+        if not def.eligible(u,r,o,node,u.clock,why) then inc(offerWhy,why.reason or '?')
+        elseif not def.feasible(u,r,o,node,u.clock) then inc(offerWhy,'no route')
+        else ok=ok+1;inc(offerWhy,'eligible');eligibleOffers[o.id]=true end
        end
       end
       if #avail==0 then inc(per,'board empty')
@@ -376,7 +387,9 @@ return function(game)
    end
    local function fmt(t) local o={} for k,v in pairs(t) do o[#o+1]=k..'='..v end table.sort(o) return table.concat(o,', ') end
    say('    jobless haulers: '..fmt(per))
-   say(('    offers they looked at (%d): '):format(looked)..fmt(offerWhy))
+   local distinct=0 for _ in pairs(eligibleOffers) do distinct=distinct+1 end
+   say(('    offers they looked at (%d, %d distinct eligible offers): '):format(looked,distinct)..fmt(offerWhy))
+   say('    freight released this hour: '..fmt(releaseLog));releaseLog={}
   end
   local idle,waiting=0,{}
   for _,r in pairs(u.npcs or {}) do
