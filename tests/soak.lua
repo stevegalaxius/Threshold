@@ -310,6 +310,35 @@ return function(game)
  -- Who is broke (under 100 cr), by role, and what each role earned this
 -- hour from freight and salvage, with what it spent on fuel and supplies.
  local lastEarn=setmetatable({},{__mode='k'})
+
+ -- Why broke haulers aren't hauling fee freight: for each broke hauler,
+ -- what the transport offers posted at its port look like to it.
+ local function brokeFreightLine()
+  local Tasks=require('src.tasks');local Transport=require('src.transport')
+  local offers=Tasks.state(u).offers
+  local why={};local ships,banned,nowhere=0,0,0
+  local function add(k) why[k]=(why[k] or 0)+1 end
+  for _,r in pairs(u.npcs or {}) do
+   if r.state~='dead' and r.state~='escaped' and r.populationGroup=='hauler' and (r.credits or 0)<100 then
+    ships=ships+1
+    for _,v in pairs(r.courierRep or {}) do if v<=require('src.tuning').courierBanRep then banned=banned+1;break end end
+    local node=r.node or r.station
+    if not node then nowhere=nowhere+1 else
+     local any=false
+     for _,o in pairs(offers) do if o.kind=='transport' and o.state=='available' and o.source==node then
+      any=true
+      if o.trade then add('trade (needs credits)')
+      elseif o.order and not o.tradeOptional and Transport.trustedUnits(u,r,o)<1 then add('not trusted')
+      elseif Tasks.definitions.transport.eligible(u,r,o,node,u.clock) then add('eligible')
+      else add('other ineligible') end
+     end end
+     if not any then add('no freight at port') end
+    end
+   end
+  end
+  local o={} for k,v in pairs(why) do o[#o+1]=k..'='..v end table.sort(o)
+  say(('    broke haulers %d: banned by a faction %d, not docked %d | port offers %s'):format(ships,banned,nowhere,table.concat(o,' ')))
+ end
  local function walletLine()
   local g={}
   local jobs={}
@@ -365,6 +394,7 @@ return function(game)
   lossLine('    losses:',lossLog);lossLog={}
   freightLine()
   walletLine()
+  brokeFreightLine()
   if fast then
    local o={} for k,v in pairs(ft) do o[#o+1]={k,v} end table.sort(o,function(a,b) return a[2]>b[2] end)
    local q={} for i,x in ipairs(o) do q[i]=('%s %.1fs'):format(x[1],x[2]) end
