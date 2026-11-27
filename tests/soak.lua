@@ -301,12 +301,17 @@ return function(game)
   for _,e in ipairs(list) do e.roleTask=e.role..':'..e.task;e.matchup=e.killer..'>'..e.role end
   say(('%s %d | victim %s | doing %s | killer>victim %s | where %s | cargo lost %.0f m3'):format(tag,#list,tally(list,'role'),tally(list,'roleTask'),tally(list,'matchup'),tally(list,'area'),cargo))
  end
+ local hauledLast
  local function freightLine()
   local v=tripLog.vols;table.sort(v)
   local function q(f) return v[math.max(1,math.floor(#v*f))] or 0 end
   local o={} for k,n in pairs(tripLog.jobs) do o[#o+1]={k,n} end table.sort(o,function(a,b) return a[2]>b[2] or a[2]==b[2] and a[1]<b[1] end)
   local j={} for i=1,math.min(10,#o) do j[i]=o[i][1]..'='..o[i][2] end
-  say(('    freight: %d runs, %.0f m3, per run p25 %.1f p50 %.1f p75 %.1f m3 | jobs taken %s'):format(tripLog.trips,tripLog.volume,q(.25),q(.5),q(.75),table.concat(j,' ')))
+  do -- what actually arrived this hour (Economy.stat 'hauled', counted at delivery)
+   local now=0 for id,n in pairs((u.economyStats or {}).hauled or {}) do now=now+n*((data.items[id] or {}).volume or 1) end
+   say(('    delivered: %.0f m3 this hour'):format(now-(hauledLast or now)));hauledLast=now
+  end
+  say(('    freight: %d runs, %.0f m3, per run p25 %.1f p50 %.1f p75 %.1f m3 (claimed) | jobs taken %s'):format(tripLog.trips,tripLog.volume,q(.25),q(.5),q(.75),table.concat(j,' ')))
   tripLog={jobs={},trips=0,volume=0,vols={}}
  end
  -- Who is broke (under 100 cr), by role, and what each role earned this
