@@ -472,11 +472,11 @@ local function trade(game, e, dt)
 				-- still on the way: an ordinary leg to the waiting point,
 				-- going round anything (this station included) in the way
 				e.dockApproach = nil
-				local wx, wy = DA.waitPoint(game, e, stop, planned.side, planned.d, planned.ry * planned.side)
+				local wx, wy = DA.waitPoint(game, e, stop, planned.side, planned.d, planned.ry * planned.side, true)
 				sx, sy = game.dockWorld(stop, planned.side, wx, wy, planned.d)
 			elseif not ap.berth and require("src.queue").dockBusy(game, stop, planned.d, e) then
 				-- the dock is in use: wait off to the side of the runway, out of the way
-				local wx, wy = DA.waitPoint(game, e, stop, planned.side, planned.d, planned.ry * planned.side)
+				local wx, wy = DA.waitPoint(game, e, stop, planned.side, planned.d, planned.ry * planned.side, true)
 				sx, sy = game.dockWorld(stop, planned.side, wx, wy, planned.d)
 			else
 				local wx, wy, want, nx, ny, _, active = DA.steer(game, e, stop, planned.d, brakeAccel(e))

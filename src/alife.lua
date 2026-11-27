@@ -1105,7 +1105,7 @@ function A.wake(game,r)
    local dock=require('src.ai').approachDock(e,destination)
    local lx,ly=game.dockLocal(destination,1,e.body:getX(),e.body:getY(),dock)
    local side=dock.both and lx<0 and -1 or 1
-   local mx,my=require('src.dock_approach').waitPoint(game,e,destination,side,dock,ly*side)
+   local mx,my=require('src.dock_approach').waitPoint(game,e,destination,side,dock,ly*side,true)
    local x,y=game.dockWorld(destination,side,mx,my,dock)
    local ox,oy=game.dockWorld(destination,side,mx+1,my,dock)
    x,y=clearSpot(game,e,x,y,ox-x,oy-y)

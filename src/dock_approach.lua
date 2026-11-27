@@ -58,10 +58,20 @@ G.markerX = markerX
 
 -- Where a ship waits for its turn: out past the marker and off to the side
 -- of the runway, so it isn't parked in the way of the player's approach.
-function G.waitPoint(game, e, st, side, d, ry)
+-- spread: this ship's own spot in a patch further out and to the side.
+-- Every inbound ship used to make for one of the same two points, so a
+-- busy station gathered its traffic into two knots that bumped and
+-- scorched each other while they waited.
+function G.waitPoint(game, e, st, side, d, ry, spread)
 	local mx = markerX(game, e, st, side, d)
 	local lateral = (d.hw or 100) + (e.halfLength or 100) + 250
-	return mx + 200, (ry or 0) >= 0 and lateral or -lateral
+	local out = 200
+	if spread then
+		local a, b = require("src.queue").spreadOf(e.alifeId or e.id or tostring(e))
+		out = out + (a * 0.5 + 0.5) * T.dockWaitSpread
+		lateral = lateral + (b * 0.5 + 0.5) * T.dockWaitSpread
+	end
+	return mx + out, (ry or 0) >= 0 and lateral or -lateral
 end
 
 -- Hold beside the runway in the station's frame. The slot nearest the

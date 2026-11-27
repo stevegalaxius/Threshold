@@ -309,6 +309,19 @@ end
 -- start (optional): how far out the line begins, at least T.queueStart. A
 -- big station's hull reached past queueStart, so the first ship in line
 -- held with its hull in the station's.
+-- A ship's own fixed spread, two numbers in [-1, 1] from its id: the same
+-- every frame, and consecutive ids far apart (the golden ratio).
+function Q.spreadOf(id)
+ id=tostring(id or '')
+ local n=tonumber(id:match('%d+$')) or 0
+ for i=1,#id do n=n+id:byte(i)*i*7 end
+ return ((n*.618034)%1)*2-1,((n*.754878+.5)%1)*2-1
+end
+
+-- Each ship holds a little to one side of the line, by its own spread:
+-- ships with the same place in two lines (two runways, or two routes in
+-- from the same way) held on the very same spot, nudged each other while
+-- they waited, and a bump between strangers could start a fight.
 function Q.holdPoint(r,clock,index,place,start)
  index=index or r.index
  local id=r.route[index]
@@ -320,7 +333,9 @@ function Q.holdPoint(r,clock,index,place,start)
  if fx and (fx-x)^2+(fy-y)^2>1 then dx,dy=fx-x,fy-y else dx,dy=x,y end -- else: straight out from the planet
  local d=math.sqrt(dx*dx+dy*dy);if d<1 then dx,dy,d=1,0,1 end
  local back=math.max(T.queueStart,start or 0)+T.queueGap*((place or Q.place(r,clock))-1)
- return x+dx/d*back,y+dy/d*back
+ local _,side=Q.spreadOf(r.id)
+ local across=side*T.queueGap*T.queueSpread
+ return x+dx/d*back-dy/d*across,y+dy/d*back+dx/d*across
 end
 
 function Q.label(r,clock,game)

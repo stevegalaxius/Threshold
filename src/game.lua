@@ -2699,7 +2699,13 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	end
 	if not e or e.kind ~= "ship" or e.dead or amount <= 0 then return end
 	if source and source.def then amount = amount * T.enemyDamage end   -- difficulty knob
-	local deliberate = cause ~= "ram" or amount >= (e.stats and e.stats.armor or 0) * T.ramAggroShare
+	-- A bump or a wash of engine exhaust is an accident unless whoever did
+	-- it was already going after this ship (or it's the player). Ships
+	-- jostling while they waited for a dock used to take a hard knock or a
+	-- scorch as an attack, shoot back, and start a brawl in the line.
+	local accidental = (cause == "ram" or cause == "exhaust") and source and not source.isPlayer
+		and source.combatTarget ~= e and source.aiFightTarget ~= e and source.aggressor ~= e
+	local deliberate = not accidental and (cause ~= "ram" or amount >= (e.stats and e.stats.armor or 0) * T.ramAggroShare)
 	local opposed = source and not Combat.allied(self.universe,source,e)
 	local victim=e.alifeRecord
 	local node=victim and victim.route and victim.route[e.routeIndex or victim.index]
