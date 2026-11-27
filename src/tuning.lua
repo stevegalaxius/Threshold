@@ -306,6 +306,9 @@ T.raidShortageBias=.25
 T.pirateBerths={max=10,fuelReserves=2}
 -- One NPC cruise speed; hulls vary it by at most npcCruiseSpread either way.
 T.npcCruise,T.npcCruiseSpread=650,.15
+-- Passenger speed bonus: full share for a ship this much (fraction) faster
+-- than the reference hull over a trip (src/passengers.lua P.speed).
+T.passengerSpeedRange=.5
 T.npcCruiseReferenceHull='ferrous_mule' -- the hull that cruises at exactly T.npcCruise (stock fit)
 T.directLinkAngle=math.pi*.8 -- NPCs fly straight (round the planet) between nodes up to this far apart (at 2/3 pi,
 -- two stations just past it with nothing between went the long way round);
@@ -640,6 +643,9 @@ T.collideShip,T.collidePickup,T.pickupRadius=2,3,6
 T.alifeGoneLinger=300
 
 T.wreckSteelPerTonne = 1 / 40   -- steel plates a drilled wreck yields, per tonne of hull
+T.salvagePiecesPerCrew=2 -- a salvage job is open only while its area holds more than this many pieces per crew already on it
+T.salvageTripCost=150 -- score a salvage listing loses for flying to another body (src/salvager.lua)
+T.npcSalvageRate=.9 -- NPC salvage sells at this share of the station's price (src/salvager.lua)
 T.salvagerCollectTime=180   -- salvage jobs fill the hold (src/scavenge.lua)
 T.salvagerRange,T.salvagerStay=6000,30
 T.wreckBountyBase=800      -- CR a system's trade station pays for each ship wreck cleared (src/wreck_bounty.lua)
@@ -726,6 +732,7 @@ T.hubPriceBand=.5
 -- a price-driven maker's price, from an empty output shelf to a full one
 T.makerPriceEmpty,T.makerPriceFull=1.4,.85
 T.tradeCourierAfter=300 -- s a trade run waits for a trader before it's posted as a courier contract
+T.brokeFreightPull=9 -- a hauler under tradeReserve weights freight this many times over (src/tasks.lua)
 T.tradeReserve=500 -- credits a trader keeps back after buying a cargo (src/transport.lua)
 -- Courier standing (src/transport.lua Transport.answer): a clean delivery
 -- earns courierRepGain with the buyer's faction; losing cargo costs

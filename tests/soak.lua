@@ -55,6 +55,28 @@ return function(game)
  local watch={'deuterium_canister','steel_plate','flare'}
  for _,id in ipairs({'ammo_kinetic','missile','ammo_small','slug'}) do if data.items[id] then watch[#watch+1]=id end end
  local function sumShort() local n=0 for _,v in pairs(u.accountSubsidy or {}) do n=n+v end return n end
+ -- Tally the ledger per soak hour as it is written. Game hours don't track
+ -- soak hours (a side scene stops the clock; the player's interplanetary
+ -- flight jumps it), so reading u.economyLedger by u.clock repeated or
+ -- skipped hours in physics runs.
+ local Economy=require('src.economy')
+ require('src.transport').courierSkips={} -- see brokeFreightLine
+ require('src.transport').consignTally={}
+ local soakLedger={items={}}
+ local rawLedger=Economy.ledger
+ Economy.ledger=function(uu,key,kind,n,item)
+  rawLedger(uu,key,kind,n,item)
+  if uu~=u or not n or n<=0 or not key then return end
+  soakLedger[kind]=(soakLedger[kind] or 0)+n
+  if item then local k=kind..':'..item;soakLedger.items[k]=(soakLedger.items[k] or 0)+n end
+ end
+ local sampleCount=0
+ local ledgerAt,ledgerLast=nil,{items={}}
+ local function ledgerSince()
+  if ledgerAt==sampleCount then return ledgerLast end
+  ledgerAt=sampleCount;ledgerLast=soakLedger;soakLedger={items={}}
+  return ledgerLast
+ end
  local sample
  sample=function(h,wall)
   local groups,alive,credits,broke,cr={},0,0,0,{}
@@ -73,7 +95,7 @@ return function(game)
    if o.state=='available' then open=open+1;kinds[o.kind]=(kinds[o.kind] or 0)+1 else claimed=claimed+1 end
   end
   local kk={} for k,v in pairs(kinds) do kk[#kk+1]=k..'='..v end table.sort(kk)
-  local lh=u.economyLedger and u.economyLedger.hours[math.floor(u.clock/3600)-1] or {}
+  local lh=ledgerSince()
   local gg={} for k,v in pairs(groups) do gg[#gg+1]=k..'='..v end table.sort(gg)
   -- wildcat sites: open (bountied), crew posted/out, hoard, hunters in/out, cleared
   do
@@ -107,8 +129,9 @@ return function(game)
  local prevSample=sample
  local lastShort={}
  sample=function(h,wall)
+  sampleCount=sampleCount+1
   prevSample(h,wall)
-  local lh=u.economyLedger and u.economyLedger.hours[math.floor(u.clock/3600)-1] or {}
+  local lh=ledgerSince()
   say(('    sold: %s'):format(top(lh,'sold',6)))
   say(('    bought: %s'):format(top(lh,'bought',6)))
   say(('    freight: %s'):format(top(lh,'freight',4)))
@@ -239,6 +262,8 @@ return function(game)
  -- Who died, doing what, carrying what, and to whom; and what the freight
 -- fleet did with its time. Printed each hour and summed at the end.
  local lossLog,lossAll={},{}
+ local releaseLog={}
+ local oreLast={}
  local tripLog={jobs={},trips=0,volume=0,vols={}}
  do
   local death=History.death
@@ -254,6 +279,12 @@ return function(game)
    return death(u_,r,clock,area,killer,...)
   end
   local Tasks=require('src.tasks');local choose=Tasks.choose;local seen=setmetatable({},{__mode='k'})
+  local release=Tasks.release
+  Tasks.release=function(u_,r,reason,...)
+   local t=r and (r.task or r.suspendedTask)
+   if t and t.kind=='transport' then local k=(t.phase or '?')..': '..tostring(reason);releaseLog[k]=(releaseLog[k] or 0)+1 end
+   return release(u_,r,reason,...)
+  end
   Tasks.choose=function(u_,r,...)
    local t=choose(u_,r,...)
    if t and seen[r]~=t then
@@ -278,36 +309,171 @@ return function(game)
   for _,e in ipairs(list) do e.roleTask=e.role..':'..e.task;e.matchup=e.killer..'>'..e.role end
   say(('%s %d | victim %s | doing %s | killer>victim %s | where %s | cargo lost %.0f m3'):format(tag,#list,tally(list,'role'),tally(list,'roleTask'),tally(list,'matchup'),tally(list,'area'),cargo))
  end
+ local hauledByLast={}
+ local hauledLast=0 -- (a fresh universe has hauled nothing: h01 was reading as its own baseline)
  local function freightLine()
   local v=tripLog.vols;table.sort(v)
   local function q(f) return v[math.max(1,math.floor(#v*f))] or 0 end
   local o={} for k,n in pairs(tripLog.jobs) do o[#o+1]={k,n} end table.sort(o,function(a,b) return a[2]>b[2] or a[2]==b[2] and a[1]<b[1] end)
   local j={} for i=1,math.min(10,#o) do j[i]=o[i][1]..'='..o[i][2] end
-  say(('    freight: %d runs, %.0f m3, per run p25 %.1f p50 %.1f p75 %.1f m3 | jobs taken %s'):format(tripLog.trips,tripLog.volume,q(.25),q(.5),q(.75),table.concat(j,' ')))
+  do -- what actually arrived this hour (Economy.stat 'hauled', counted at delivery)
+   local now=0 for id,n in pairs((u.economyStats or {}).hauled or {}) do now=now+n*((data.items[id] or {}).volume or 1) end
+   local by={} for id,n in pairs((u.economyStats or {}).hauled or {}) do
+    local m=n*((data.items[id] or {}).volume or 1);local d=m-(hauledByLast[id] or 0);hauledByLast[id]=m
+    if d>0 then by[#by+1]={id,d} end
+   end
+   table.sort(by,function(a,b) return a[2]>b[2] end)
+   local top={} for i=1,math.min(8,#by) do top[i]=by[i][1]..'='..math.floor(by[i][2]) end
+   say(('    delivered: %.0f m3 this hour [%s]'):format(now-(hauledLast or now),table.concat(top,' ')));hauledLast=now
+  end
+  say(('    freight: %d runs, %.0f m3, per run p25 %.1f p50 %.1f p75 %.1f m3 (claimed) | jobs taken %s'):format(tripLog.trips,tripLog.volume,q(.25),q(.5),q(.75),table.concat(j,' ')))
   tripLog={jobs={},trips=0,volume=0,vols={}}
  end
  -- Who is broke (under 100 cr), by role, and what each role earned this
 -- hour from freight and salvage, with what it spent on fuel and supplies.
  local lastEarn=setmetatable({},{__mode='k'})
+
+ -- Why broke haulers aren't hauling fee freight: for each broke hauler,
+ -- what the transport offers posted at its port look like to it.
+ local function brokeFreightLine()
+  local Tasks=require('src.tasks');local Transport=require('src.transport')
+  local offers=Tasks.state(u).offers
+  local why={};local ships,banned,nowhere=0,0,0
+  local function add(k) why[k]=(why[k] or 0)+1 end
+  for _,r in pairs(u.npcs or {}) do
+   if r.state~='dead' and r.state~='escaped' and r.populationGroup=='hauler' and (r.credits or 0)<100 then
+    ships=ships+1
+    for _,v in pairs(r.courierRep or {}) do if v<=require('src.tuning').courierBanRep then banned=banned+1;break end end
+    local node=r.node or r.station
+    if not node then nowhere=nowhere+1 else
+     local any=false
+     for _,o in pairs(offers) do if o.kind=='transport' and o.state=='available' and o.source==node then
+      any=true
+      if o.trade then add('trade (needs credits)')
+      elseif o.order and not o.tradeOptional and Transport.trustedUnits(u,r,o)<1 then add('not trusted')
+      elseif Tasks.definitions.transport.eligible(u,r,o,node,u.clock) then add('eligible')
+      else add('other ineligible') end
+     end end
+     if not any then add('no freight at port') end
+    end
+   end
+  end
+  -- Every jobless hauler, and why the freight on the board isn't its job:
+  -- per hauler, its best outcome; per offer it looked at, the reason it
+  -- turned it down (Tasks.definitions.transport.eligible's why). An idle
+  -- hauler is a list of causes, not spare capacity.
+  do
+   local W=require('src.work_preferences');local def=Tasks.definitions.transport
+   local per,offerWhy,looked={}, {},0
+   local eligibleOffers={}
+   local oreWhy={}
+   local function inc(t,k) t[k]=(t[k] or 0)+1 end
+   local avail={} for id,o in pairs(Tasks.state(u).offers) do if o.kind=='transport' and o.state=='available' then avail[#avail+1]=o end end
+   for _,r in pairs(u.npcs or {}) do
+    if r.state~='dead' and r.state~='escaped' and r.populationGroup=='hauler' and not r.task then
+     local node=r.node or r.station
+     if r.state~='docked' and r.state~='idle' then inc(per,'not docked ('..tostring(r.state)..')')
+     elseif not node or not require('src.locations').byId[node] then inc(per,'no port')
+     elseif (W.weight(r,'transport') or 0)<=0 then inc(per,'profile takes no freight')
+     else
+      local ok=0
+      for _,o in ipairs(avail) do
+       looked=looked+1
+       if (o.readyAt or 0)>u.clock then inc(offerWhy,'cooling down after a release')
+       elseif not Tasks.npcMayClaim(u,o,u.clock) then inc(offerWhy,(o.npcClaimAt or 0)>u.clock and 'in its public listing window' or 'held for the player')
+       else
+        local why={}
+        local oreOffer=o.item=='iron_ore'
+        if not def.eligible(u,r,o,node,u.clock,why) then inc(offerWhy,why.reason or '?');if oreOffer then inc(oreWhy,why.reason or '?') end
+        elseif not def.feasible(u,r,o,node,u.clock) then inc(offerWhy,'no route')
+        else ok=ok+1;inc(offerWhy,'eligible');eligibleOffers[o.id]=true;if oreOffer then inc(oreWhy,'eligible') end end
+       end
+      end
+      if #avail==0 then inc(per,'board empty')
+      elseif ok>0 then inc(per,'had eligible freight, status '..tostring(r.taskStatus))
+      else inc(per,'nothing eligible') end
+     end
+    end
+   end
+   local function fmt(t) local o={} for k,v in pairs(t) do o[#o+1]=k..'='..v end table.sort(o) return table.concat(o,', ') end
+   say('    jobless haulers: '..fmt(per))
+   local distinct=0 for _ in pairs(eligibleOffers) do distinct=distinct+1 end
+   say(('    offers they looked at (%d, %d distinct eligible offers): '):format(looked,distinct)..fmt(offerWhy))
+   say('    freight released this hour: '..fmt(releaseLog));releaseLog={}
+   -- iron ore, end to end: made and used this hour, stock where it's mined
+   -- vs elsewhere, the ore on the board, and what miners are doing
+   do
+    local st=u.economyStats or {}
+    local made,used=(st.made or {}).iron_ore or 0,(st.used or {}).iron_ore or 0
+    local dm,du=made-(oreLast.made or 0),used-(oreLast.used or 0);oreLast.made,oreLast.used=made,used
+    local Stock=require('src.stockpile');local L=require('src.locations')
+    local where={}
+    for _,id in ipairs(stations) do local n=Stock.count(u,id,'iron_ore');if n>0 then local a=L.byId[id] and L.byId[id].area or '?';where[a]=(where[a] or 0)+n end end
+    local open,claimed,trade=0,0,0
+    for _,o in pairs(Tasks.state(u).offers) do if o.kind=='transport' and o.item=='iron_ore' then
+     if o.state=='available' then open=open+1 else claimed=claimed+1 end;if o.trade or o.tradeOptional then trade=trade+1 end
+    end end
+    local miners={}
+    for _,r in pairs(u.npcs or {}) do if r.state~='dead' and r.state~='escaped' and r.populationGroup=='miner' then
+     inc(miners,(r.task and (r.task.kind..'/'..tostring(r.task.phase)) or ('none: '..tostring(r.taskStatus))))
+    end end
+    say(('    iron ore: made %.0f used %.0f this hour | stock by area %s | board open %d claimed %d (trade %d) | reasons %s'):format(dm,du,fmt(where),open,claimed,trade,fmt(oreWhy)))
+    say('    miners: '..fmt(miners))
+   end
+  end
+  local idle,waiting=0,{}
+  for _,r in pairs(u.npcs or {}) do
+   if r.state~='dead' and r.state~='escaped' and r.populationGroup=='hauler' and not r.task then
+    idle=idle+1;local k=r.taskStatus or '?';waiting[k]=(waiting[k] or 0)+1
+   end
+  end
+  local wl={} for k,v in pairs(waiting) do wl[#wl+1]=k..'='..v end table.sort(wl)
+  say(('    haulers without a job: %d [%s]'):format(idle,table.concat(wl,', ')))
+  local salvage=0 for _,o in pairs(Tasks.state(u).offers) do if o.kind=='salvage' then salvage=salvage+1 end end
+  say(('    salvage listings on the board: %d'):format(salvage))
+  local consigned,owed=0,0
+  for _,r in pairs(u.npcs or {}) do local t=r.task
+   if r.state~='dead' and t and t.kind=='transport' then for _,line in ipairs(t.manifest or {t}) do
+    if line.consigned then consigned=consigned+1;owed=owed+line.consigned end end end
+  end
+  local ct=Transport.consignTally or {};Transport.consignTally={}
+  say(('    consignment: %d loads on credit now, %.0f cr outstanding | settled this hour %d, repaid %.0f, written off %.0f'):format(consigned,owed,ct.settled or 0,ct.repaid or 0,ct.unpaid or 0))
+  local o={} for k,v in pairs(why) do o[#o+1]=k..'='..v end table.sort(o)
+  local ks=Transport.courierSkips or {};Transport.courierSkips={}
+  say(('    aged trade runs kept trade-only this hour: target already stocked %d, buyer short of funds %d (per board refresh)'):format(ks.stocked or 0,ks.budget or 0))
+  say(('    broke haulers %d: banned by a faction %d, not docked %d | port offers %s'):format(ships,banned,nowhere,table.concat(o,' ')))
+ end
  local function walletLine()
   local g={}
-  for _,r in pairs(u.npcs or {}) do
+  local jobs={}
+  for _,r in pairs(u.npcs or {}) do if r.state~='dead' and r.state~='escaped' then
    local grp=r.populationGroup or '?'
-   local e=g[grp] or {n=0,broke=0,freight=0,salvage=0,spent=0,credits=0,brokeDoing={}};g[grp]=e
+   local e=g[grp] or {n=0,broke=0,freight=0,salvage=0,spent=0,credits=0,trade=0,sales=0,rest=0,delta=0,brokeDoing={}};g[grp]=e
    local c=r.credits or 0;e.n=e.n+1;e.credits=e.credits+c
-   local last=lastEarn[r] or {f=0,s=0,x=0}
-   local f,sv,x=r.freightEarnings or 0,r.salvageEarnings or 0,(r.fuelSpent or 0)+(r.suppliesSpent or 0)
+   local f,sv,x=r.freightEarnings or 0,r.salvageEarnings or 0,r.suppliesSpent or 0 -- (fuel is already inside suppliesSpent)
+   local tr,z,ts=r.tradeSpent or 0,r.restSpend or 0,r.tradeEarnings or 0
+   local by={} for k,v in pairs(r.suppliesByJob or {}) do by[k]=v end
+   -- a record first seen this sample is its own baseline: no deltas yet
+   local last=lastEarn[r] or {f=f,s=sv,x=x,t=tr,z=z,c=c,ts=ts,by=by}
+   e.sales=e.sales+math.max(0,ts-last.ts)
+   if grp=='hauler' then for k,v in pairs(by) do jobs[k]=(jobs[k] or 0)+math.max(0,v-(last.by[k] or 0)) end end
+   e.trade=e.trade+math.max(0,tr-last.t);e.rest=e.rest+math.max(0,z-last.z);e.delta=e.delta+(c-(last.c or c))
    e.freight=e.freight+math.max(0,f-last.f);e.salvage=e.salvage+math.max(0,sv-last.s);e.spent=e.spent+math.max(0,x-last.x)
-   lastEarn[r]={f=f,s=sv,x=x}
+   lastEarn[r]={f=f,s=sv,x=x,t=tr,z=z,c=c,ts=ts,by=by}
    if c<100 then e.broke=e.broke+1;local k=r.task and r.task.kind or 'idle';e.brokeDoing[k]=(e.brokeDoing[k] or 0)+1 end
-  end
+  end end
   local o={} for k in pairs(g) do o[#o+1]=k end table.sort(o)
   local q={}
   for _,k in ipairs(o) do local e=g[k]
    local d={} for kk,n in pairs(e.brokeDoing) do d[#d+1]=kk..'='..n end table.sort(d)
-   q[#q+1]=('%s %d broke of %d (mean %.0f cr, freight +%.0f, salvage +%.0f, fuel and supplies -%.0f%s)'):format(k,e.broke,e.n,e.credits/math.max(1,e.n),e.freight,e.salvage,e.spent,#d>0 and ('; broke doing '..table.concat(d,',')) or '')
+   -- other = everything the named lines miss (trade sales, fares, wages,
+   -- bounties minus refits, ship buys...): net change minus what is named
+   local other=e.delta-(e.freight+e.salvage+e.sales-e.spent-e.trade-e.rest)
+   q[#q+1]=('%s %d broke of %d (mean %.0f cr, freight +%.0f, salvage +%.0f, fuel and supplies -%.0f, trade goods -%.0f, trade sales +%.0f, shore leave -%.0f, other %+.0f, net %+.0f%s)'):format(k,e.broke,e.n,e.credits/math.max(1,e.n),e.freight,e.salvage,e.spent,e.trade,e.sales,e.rest,other,e.delta,#d>0 and ('; broke doing '..table.concat(d,',')) or '')
   end
-  say('    wallets: '..table.concat(q,' | '))
+  say("    wallets (alive ships; a ship's first sample is its baseline): "..table.concat(q,' | '))
+  local jj={} for k,v in pairs(jobs) do jj[#jj+1]=k..'='..math.floor(v) end table.sort(jj)
+  say('    hauler supplies by job: '..table.concat(jj,' '))
  end
  -- the full event log (tests/soak_log.lua), when SOAK_LOG names a file
  local SoakLog=require('tests.soak_log')
@@ -318,15 +484,21 @@ return function(game)
  local steps=math.floor(3600/dt)
  say(('soak: %d h at dt=%.4f on %s, %d trade stations, news %s%s'):format(hours,dt,game.fieldId,#stations,newsOn and (scripted and 'on, scripted player' or 'on') or 'off',fast and (', FAST (no physics, records every %gs)'):format(fstep) or ''))
  sample(0,0)
+ local stepCarry=0
  for h=1,hours do
-  local per=math.floor(steps/60)
-  local ok,err=xpcall(function() for m=1,60 do if fast then fastMinute() else for _=1,per do game:step(dt) end end newsMinute(h,m) SoakLog.minute() end end,debug.traceback)
+  -- Step whole minutes of game time: floor(60/dt) steps fell ~0.9 s short
+  -- each hour at dt=1/60, so the hour index read from u.clock lagged and a
+  -- later hour reported the previous hour's ledger again.
+  local ok,err=xpcall(function() for m=1,60 do if fast then fastMinute() else
+   stepCarry=stepCarry+60/dt;local n=math.floor(stepCarry+1e-6);stepCarry=stepCarry-n
+   for _=1,n do game:step(dt) end end newsMinute(h,m) SoakLog.minute() end end,debug.traceback)
   if not ok then say('CRASH in hour '..h..': '..tostring(err));break end
   sample(h,os.clock()-t0)
   newsSample(h)
   lossLine('    losses:',lossLog);lossLog={}
   freightLine()
   walletLine()
+  brokeFreightLine()
   if fast then
    local o={} for k,v in pairs(ft) do o[#o+1]={k,v} end table.sort(o,function(a,b) return a[2]>b[2] end)
    local q={} for i,x in ipairs(o) do q[i]=('%s %.1fs'):format(x[1],x[2]) end
