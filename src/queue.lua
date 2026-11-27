@@ -241,37 +241,38 @@ local function liveLine(game,e,stop,dock)
  return false,1,place,busy
 end
 
--- A ship waiting behind a busy runway takes another runway of the same
--- station when fewer ships are ahead there. Without this every arrival kept
--- the runway nearest where it first came in, so one dock served the whole
--- line while the station's other docks sat empty.
-local function shorterRunway(game,e,stop,place)
- local AI=require('src.ai')
+-- A ship can use an empty runway while the leader is still flying in.
+-- Keep order within each line and only switch to a runway with less traffic.
+local function shorterRunway(game,e,stop,place,busy)
  local docks=stop.docks
  if not docks or #docks<2 or not e.approach or e.approach.stop~=stop then return end
+ if place~=(busy and 1 or 2) then return end
  local mine=e.approach.dock
- -- (a free runway with a ship ahead is just arrival order: that one goes next)
- if not Q.dockBusy(game,stop,mine,e) then return end
- local ahead=place
+ local ahead=place-1+(busy and 1 or 0)
  local best,bestLoad
  for _,d in ipairs(docks) do
-  if d~=mine then
-   local _,_,count,busy=liveLine(game,e,stop,d)
-   local load=(count or 0)+(busy and 1 or 0)
-   if load<ahead and (not bestLoad or load<bestLoad) then best,bestLoad=d,load end
+  if d~=mine and (busy or game:fitsDock(e,d)) then
+   local _,_,count,otherBusy=liveLine(game,e,stop,d)
+   local load=(count or 0)+(otherBusy and 1 or 0)
+   if (busy or load==0) and load<ahead and (not bestLoad or load<bestLoad) then best,bestLoad=d,load end
   end
  end
- if best then e.approach.dock=best;return true end
+ if best then
+  e.approach.dock=best
+  -- The next ship to ask this tick must see that the runway now has a leader.
+  local lines=liveCache(game).lines
+  lines[mine],lines[best]=nil,nil
+  return true
+ end
 end
 
 -- Online: is the live ship e holding for its turn at route stop `stop`?
-function Q.holding(game,e,stop)
+function Q.holding(game,e,stop,rebalance)
  local r=e.alifeId and game.universe.npcs[e.alifeId]
  local q=r and r.queue
  if r and stop and (stop.dock or q and q.kind=='driver' and stop.driver and stop.locationId==q.key) then
   local waiting,place,_,busy=liveLine(game,e,stop)
-  -- (it joins the new runway's line next tick, when the line is rebuilt)
-  if waiting and stop.docks and shorterRunway(game,e,stop,place) then return r,place,true end
+  if waiting and rebalance and shorterRunway(game,e,stop,place,busy) then return r,place,busy end
   return waiting and r or nil,place,busy
  end
  return q and q.ready>(q.at or 0)+.5 and stop and stop.locationId and stop.locationId==q.key and game.universe.clock<q.ready and r or nil
