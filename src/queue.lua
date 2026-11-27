@@ -342,6 +342,14 @@ function Q.holdPoint(r,clock,index,place,start)
  if fx and (fx-x)^2+(fy-y)^2>1 then dx,dy=fx-x,fy-y else dx,dy=x,y end -- else: straight out from the planet
  local d=math.sqrt(dx*dx+dy*dy);if d<1 then dx,dy,d=1,0,1 end
  local back=math.max(T.queueStart,start or 0)+T.queueGap*((place or Q.place(r,clock))-1)
+ -- The planet sits at the origin. A line back towards a stop round the far
+ -- side ran down into it (a port on the surface, like Olympus, with a long
+ -- line), so a line that would end closer in than the stop goes straight
+ -- out from the planet instead.
+ local hx,hy=x+dx/d*back,y+dy/d*back
+ if hx*hx+hy*hy<x*x+y*y then
+  dx,dy=x,y;d=math.sqrt(dx*dx+dy*dy);if d<1 then dx,dy,d=1,0,1 end
+ end
  local _,side=Q.spreadOf(r.id)
  local across=side*T.queueGap*T.queueSpread
  return x+dx/d*back-dy/d*across,y+dy/d*back+dx/d*across
