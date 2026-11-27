@@ -202,10 +202,19 @@ local function liveLine(game,e,stop,dock)
     -- that reach, so a ship that got there dropped out of the line, flew
     -- back in to rejoin at the end, was sent out to its spot again, and
     -- shuttled back and forth through the line for ever.
-    local reach=T.queueStart+T.queueGap*4
+    -- Measured from where the line actually starts: a big hull pushes the
+    -- first spot out past queueStart (see the lineStart in src/ai.lua), and
+    -- at Olympus that put the spots outside this reach. A ship sent to its
+    -- spot left the line, came back in, was sent out again, and the whole
+    -- line shuttled on the boundary in a knot.
+    local base=T.queueStart
+    if stop.kind=='station' and stop.body and stop.body.getFixtures then
+     base=math.max(base,AI.hullRadius(stop)+(other.halfLength or 100)+T.npcDockMarker+T.dockWaitSpread)
+    end
+    local reach=base+T.queueGap*4
     local booking=q and q.key==stop.locationId and q
     local entered=booking and booking.entered or other.queueStop==stop and other.queueEntered
-    if entered then reach=T.queueStart+T.queueGap*(#cache.ships+4) end
+    if entered then reach=base+T.queueGap*(#cache.ships+4)+T.queueGap end
     if (x-sx)^2+(y-sy)^2<=reach^2 then
      entered=entered or clock
      if booking then booking.entered=entered else other.queueStop,other.queueEntered=stop,entered end
