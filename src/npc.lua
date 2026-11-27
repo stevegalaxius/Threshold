@@ -177,6 +177,16 @@ function N.travelSpeed(ship)
  local top=math.sqrt(thrust/k)
  return math.max(cruise,math.min(cruise*T.aiBoostCruise,top*.85))
 end
+-- The reference hull's travel speed: the pace the fixed trip estimates
+-- (passenger journey times) were written for.
+local refTravel
+function N.referenceTravel()
+ if not refTravel then
+  local ref=data.hulls[T.npcCruiseReferenceHull]
+  refTravel=ref and N.travelSpeed({hull=T.npcCruiseReferenceHull}) or T.npcCruise
+ end
+ return refTravel
+end
 -- The live ship's cruise, for onscreen steering.
 function N.liveCruise(e)
  return e.npcCruise or (e.alifeRecord and e.alifeRecord.speed) or (e.def and e.def.ai and e.def.ai.cruise) or T.npcCruise

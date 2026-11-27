@@ -306,6 +306,9 @@ T.raidShortageBias=.25
 T.pirateBerths={max=10,fuelReserves=2}
 -- One NPC cruise speed; hulls vary it by at most npcCruiseSpread either way.
 T.npcCruise,T.npcCruiseSpread=650,.15
+-- Passenger speed bonus: full share for a ship this much (fraction) faster
+-- than the reference hull over a trip (src/passengers.lua P.speed).
+T.passengerSpeedRange=.5
 T.npcCruiseReferenceHull='ferrous_mule' -- the hull that cruises at exactly T.npcCruise (stock fit)
 T.directLinkAngle=math.pi*.8 -- NPCs fly straight (round the planet) between nodes up to this far apart (at 2/3 pi,
 -- two stations just past it with nothing between went the long way round);
