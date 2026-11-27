@@ -33,15 +33,19 @@ local function from(f,id) return id==f.here and 'from here' or 'from '..name(id)
 local function m3(v) return v>=10 and ('%d m3'):format(math.floor(v+.5)) or ('%.1f m3'):format(v) end
 local function minutes(s) s=math.max(0,math.ceil(s));return s>=60 and ('%dm'):format(math.ceil(s/60)) or ('%ds'):format(s) end
 local function inside(r,x,y) return x>=r.x and y>=r.y and x<r.x+r.w and y<r.y+r.h end
-local function purpose(o) return o.purpose=='work' and 'commute' or 'visit' end
+local function purpose(o) return o.purpose=='vip' and 'VIP' or o.purpose=='work' and 'commute' or 'visit' end
+local function who(o) return o.notable and ('VIP: %s'):format(o.vipName or 'a notable') or ('Party of %d'):format(o.party) end
 local function drawPassengerActive(game,f,t)
  local r=f.activeRect;Station.panel(r.x,r.y,r.w,r.h)
  local pickup=t.phase=='pickup'
- text(r.x+14,r.y+10,r.w-230,('YOUR CONTRACT · Party of %d to %s'):format(t.party,name(t.target)),15,HUD.AQUA)
+ text(r.x+14,r.y+10,r.w-230,('YOUR CONTRACT · %s to %s'):format(who(t),name(t.target)),15,HUD.AQUA)
  right(r.x+14,r.y+10,r.w-28,HUD.credits(t.fare or 0),16,HUD.AQUA)
  text(r.x+14,r.y+48,r.w-230,('%s · %s · %s'):format(from(f,t.source),reach(t),purpose(t)),13)
  local detail=pickup and ('Next: board the party at %s (%d free climate seats).'):format(name(t.source),t.party) or ('Next: fly them to %s and drop them off.'):format(name(t.target))
- if not pickup and (game.player.cargo.passengers or 0)<t.party then detail='Passengers missing.' end
+ if not pickup and (game.player.cargo[t.item or 'passengers'] or 0)<t.party then detail='Passengers missing.' end
+ if t.notable and not pickup then detail=detail..' Eject them in space to space them.' end
+ if t.lapsed then detail='Overdue: the next station you dock at will take them off your ship.'
+ elseif t.deadline then detail=detail..(' Due in %s.'):format(minutes(t.deadline-game.universe.clock)) end
  text(r.x+14,r.y+76,r.w-230,detail,14,HUD.INK)
  text(r.x+14,r.y+108,r.w-230,'The fare was locked when you accepted.',13,HUD.DIM)
  local destination=pickup and t.source or t.target
@@ -131,7 +135,7 @@ local function drawPassenger(game,f,row)
  local clock=game.universe.clock
  local o,q=row.offer,row.quote;Station.panel(row.x,row.y,row.w,row.h)
  local P=require('src.passengers')
- text(row.x+14,row.y+10,row.w-230,('Party of %d to %s'):format(o.party,name(o.target)),15)
+ text(row.x+14,row.y+10,row.w-230,('%s to %s'):format(who(o),name(o.target)),15,o.notable and HUD.AQUA or nil)
  right(row.x+14,row.y+10,row.w-28,q and HUD.credits(q.payment) or ('up to '..HUD.credits(P.maxFare(o))),16,HUD.AQUA)
  text(row.x+14,row.y+46,row.w-225,('%s · %s · %s · needs %d climate seats · open for %s'):format(from(f,o.source),reach(o),purpose(o),o.party,minutes((o.expires or clock)-clock)),13)
  local note=q and {('Your ship earns base %s +%d%% comfort +%d%% speed. The fare locks when you accept.'):format(HUD.credits(math.floor(P.baseFare(o)+.5)),math.floor(q.detail.comfortShare*100+.5),math.floor(q.detail.speedShare*100+.5))}

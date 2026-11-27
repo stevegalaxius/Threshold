@@ -1363,6 +1363,8 @@ function A.install(Game)
    require('src.queue').universe=self.universe
    require('src.arbiter').update(self.universe,clock)
    require('src.passengers').update(self.universe,clock)
+   require('src.notables').update(self.universe,clock)
+   require('src.player_contracts').expire(self.universe,clock)
    require('src.sites').tick(self,clock)
    return
   end

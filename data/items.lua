@@ -150,6 +150,12 @@ salvage { id = "cannabinoid_moss", name = "Cannabinoid moss", volume = 0.25, mas
 -- They are a contract's party, never market goods.
 salvage { id = "passengers", name = "Passengers", delicate = true, passengers = true, volume = 1, mass = 0.1, price = 0, w = 1, h = 1, stack = 1,
 	description = "A travelling party. Seated in a climate-controlled hold; the more comfortable the seats, the better the fare." }
+-- A notable riding as a VIP (src/notables.lua): one seat, same rules.
+-- Ejecting one in space is an airlock: they die, and the world changes.
+salvage { id = "vip", name = "VIP passenger", delicate = true, passengers = true, volume = 1, mass = 0.1, price = 0, w = 1, h = 1, stack = 1,
+	description = "Someone important, travelling under your care. Their staff booked the best seat you have." }
+salvage { id = "vip_remains", name = "Remains in a pressure suit", volume = 1, mass = 0.1, price = 0, w = 1, h = 1, stack = 1,
+	description = "What came out of the airlock. The suit's seal still carries their name." }
 salvage { id = "food_crate", name = "Food crate", volume = 0.25, mass = 0.2, price = 40, w = 1, h = 1, stack = 4 }
 salvage { id = "nitrates", name = "Nitrates", volume = 0.25, mass = 0.25, price = 60, w = 1, h = 1, stack = 4 }
 salvage { id = "explosives", name = "Explosives", volume = 0.25, mass = 0.25, price = 175, w = 1, h = 1, stack = 4 }

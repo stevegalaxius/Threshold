@@ -68,6 +68,16 @@ local function entries(game,f)
   local avail=0;for _,o in ipairs(open) do if o.state=='available' then avail=avail+1 end end
   note('station',('%d passenger contracts out (at most %d) · %d open: find them under Freight'):format(#open,P.cap(here),avail))
  end
+ -- Notables staying here (src/notables.lua)
+ do
+  local NB=require('src.notables');local here_=require('src.locations').canonical(here)
+  local present={}
+  for _,n in ipairs(require('data.notables').cast) do
+   local p=NB.person(u,n.id)
+   if p.status=='alive' and not p.trip and p.at==here_ then present[#present+1]=('%s, %s'):format(n.name,n.office) end
+  end
+  if #present>0 then head('station','NOTABLES HERE');for _,line in ipairs(present) do note('station',line) end end
+ end
  -- Freight
  local sys=Q.system(here)
  local freight={}

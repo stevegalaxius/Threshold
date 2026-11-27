@@ -106,6 +106,8 @@ function Game:playerDocked(st)
 	self.universe.home = { field = self.fieldId, key = st.key, name = st.name }
 	local _, message = require("src.player_contracts").finishRecovery(self)
 	if message then self:toast(message, 2.5) end
+	local taken = require("src.player_contracts").collectLapsed(self)
+	if taken then self:toast(taken, 3) end
 	self:autosave()
 end
 
@@ -504,6 +506,7 @@ function Game:saveState()
 		nextLooseId = u.nextLooseId, merchants = Persistence.copy(u.merchants), industry = Persistence.copy(u.industry),
 		arbiter = Persistence.copy(u.arbiter), fleetSeeded = Persistence.copy(u.fleetSeeded), satWearAt = u.satWearAt, squads = Persistence.copy(u.squads), accounts = Persistence.copy(u.accounts), wreckBounty = Persistence.copy(u.wreckBounty), madeAt = Persistence.copy(u.madeAt),
 		news = Persistence.copy(u.news), notifications = Persistence.copy(u.notifications),
+		worldstate = Persistence.copy(u.worldstate), notables = Persistence.copy(u.notables),
 		wreckContractNotice = self.state == "dead" and self.wreckContractNotice or nil }
 	local p = self.player
 	if p and not p.dead then
@@ -543,6 +546,8 @@ function Game:loadState(state)
 	self.universe.piracy = Persistence.copy(state.piracy)
 	self.universe.reputation = Persistence.copy(state.reputation)
 	self.universe.news = Persistence.copy(state.news)
+	self.universe.worldstate = Persistence.copy(state.worldstate)
+	self.universe.notables = Persistence.copy(state.notables)
 	self.universe.notifications = Persistence.copy(state.notifications)
 	require("src.notify").clear()
 	self.universe.alifeWrecks = Persistence.copy(state.alifeWrecks)

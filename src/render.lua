@@ -14,6 +14,7 @@ local Icons = require("src.icons")
 -- upright whatever the berth's heading.
 local function forSaleSign(x,y,hull,stationAngle)
  local lg=love.graphics;local HUD=require('src.hud')
+ local previous=lg.getFont()
  lg.push();lg.translate(x,y);lg.rotate(-(stationAngle or 0));x,y=0,0
  local r=0;for i=1,#hull.shape,2 do r=math.max(r,math.abs(hull.shape[i]),math.abs(hull.shape[i+1])) end
  local font=HUD.font(28);local text='FOR SALE'
@@ -23,6 +24,8 @@ local function forSaleSign(x,y,hull,stationAngle)
  lg.setColor(1,0.78,0.3,0.95);lg.setLineWidth(2);lg.rectangle('line',x-w/2,sy,w,h,6,6)
  lg.setFont(font);lg.print(text,x-w/2+12,sy+5)
  lg.pop()
+ -- (put the font back: later screen text, like the F6 labels, inherits it)
+ lg.setFont(previous)
 end
 
 local Ship = require("src.ship")
@@ -1893,7 +1896,7 @@ function Render.world(game, overlay, boundaryAngle)
 	-- A-Life debug overlay (F6 / N on the local map), drawn in screen space
 	local Overlay = require("src.ui.alife_overlay")
 	if Overlay.state.overlay or Overlay.state.selected then
-		Overlay.draw(game, function(_, x, y) return game.camera:toScreen(x, y) end)
+		Overlay.draw(game, function(_, x, y) return game.camera:toScreen(x, y) end, require("src.hud").font(12))
 	end
 	if restorePreview then restorePreview() end
 end

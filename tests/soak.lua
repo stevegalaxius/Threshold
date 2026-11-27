@@ -190,7 +190,7 @@ return function(game)
   -- and which outlets cover that area
   local dd={}
   for _,e in ipairs(News.state(u).deaths or {}) do if e.clock>since then
-   local cov={} for _,x in ipairs(News.order) do if News.covers(x,e.area) then cov[#cov+1]=x end end
+   local cov={} for _,x in ipairs(News.order) do if News.covers(u,x,e.area) then cov[#cov+1]=x end end
    local r=e.result or {}
    dd[#dd+1]=('%s killer=%s faction=%s covered=%s'):format(tostring(e.area),tostring(r.killer),tostring(r.faction),#cov>0 and table.concat(cov,',') or 'none')
   end end

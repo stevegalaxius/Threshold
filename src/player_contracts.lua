@@ -71,7 +71,12 @@ function C.quote(game,o)
   local ship={hull=p.hull.id,loadout=p.loadout}
   local seats=P.seatCount(ship)
   if seats<o.party then return nil,('Party of %d: %d climate seats aboard'):format(o.party,seats) end
-  if Ship.canFit(p,P.item,o.party)<o.party then return nil,'Clear your climate hold for the party' end
+  if Ship.canFit(p,o.item or P.item,o.party)<o.party then return nil,'Clear your climate hold for the party' end
+  if o.notable then
+   local Rep=require('src.reputation')
+   if Rep.standing(u,o.faction)<(o.standingMin or -math.huge) then return nil,"Their staff won't book a captain "..Rep.FACTIONS[o.faction].name.." distrusts" end
+   if (P.comfort(ship,o.party) or 0)<(o.comfortMin or 0) then return nil,'Needs a more comfortable seat (a climate pod or better)' end
+  end
   local fare,detail=P.fare(o,ship)
   return {amount=o.party,payment=fare,detail=detail,routeAU=o.routeAU,passenger=true}
  end
@@ -106,6 +111,8 @@ function C.accept(game,id)
  local u=game.universe;local o=Tasks.state(u).offers[id]
  local q,why=C.quote(game,o);if not q then return nil,why end
  local t=copy(o);t.amount=q.amount;t.phase='prepare';t.assigned=u.clock;t.state=nil
+ -- a contract with a time limit is due this long after booking (C.expire)
+ if o.timeLimit then t.deadline=u.clock+o.timeLimit end
  local r=attach(game);local def=Tasks.definitions[t.kind]
  if not def.eligible(u,r,t,here,u.clock) then detach(game,r);return nil,'This freight order is no longer eligible' end
  if not def.feasible(u,r,t,here,u.clock) then detach(game,r);return nil,'No route to pickup or delivery' end
@@ -239,9 +246,62 @@ function C.onWreck(game,ship)
   -- settlement open so the replacement ship can recover and deliver it.
   return 'Freight contract still active · recover cargo from the wreck'
  end
- if t.kind=='passenger' and (ship.cargo.passengers or 0)>0 then
+ if t.kind=='passenger' and (ship.cargo[t.item or 'passengers'] or 0)>0 then
+  if t.notable then require('src.notables').survived(game.universe,t.notable,t.source) end
   return failLoaded(game,r,'ship wrecked')
  end
+end
+
+-- The VIP left the ship in flight (src/notables.lua N.airlock): the
+-- contract ends there, unpaid, and nobody is coming to collect.
+function C.endVIP(game,reason)
+ local u=game.universe;local r=owner(u);local t=r.task
+ if not (t and t.notable) then return end
+ Tasks.state(u).offers[t.id]=nil
+ t.settled=true   -- (no courier-standing charge: the faction is about to learn far worse)
+ Tasks.release(u,r,reason,u.clock)
+ r.contractLoss={kind=t.kind,reason=reason}
+end
+
+-- Time limits. A contract with t.deadline (set from the offer's
+-- timeLimit when it's booked) that runs over lapses: the faction it was
+-- for takes the standing hit (t.lapseStanding), and the job is off. If
+-- what was carried is still aboard, it stays there, held, until the next
+-- dock, where the station's staff take it off (C.collectLapsed). Any
+-- contract kind can use it; only VIP runs set a time limit today.
+function C.expire(u,clock)
+ local r=owner(u);local t=r.task
+ if not (t and t.deadline and not t.lapsed and clock>t.deadline) then return end
+ t.lapsed=true
+ local Rep=require('src.reputation')
+ local f=t.faction or Rep.ofNode(L.canonical(t.target))
+ Rep.addStanding(u,f,t.lapseStanding or -10)
+ local who=t.vipName or (t.kind=='passenger' and 'The party' or 'The cargo')
+ if t.phase=='delivery' then
+  if t.notable then require('src.notables').held(u,t.notable) end
+  require('src.notify').post(u,{kind='contract',title='Contract overdue',text=who..' is overdue. The next station you dock at will take them off your ship.'})
+ else
+  Tasks.release(u,r,'overdue',clock)
+  require('src.notify').post(u,{kind='contract',title='Contract overdue',text='You never made the pickup. The booking is cancelled.'})
+ end
+end
+-- Docked with a lapsed contract's goods or party aboard: they're taken off
+-- here and the contract ends unpaid. Returns a message, or nil.
+function C.collectLapsed(game)
+ local here=C.station(game);local u=game.universe;local r=owner(u);local t=r.task
+ if not (here and t and t.lapsed) then return end
+ local p=game.player;local item=t.item;local n=math.min(t.amount or t.party or 0,p.cargo[item] or 0)
+ if n>0 then
+  if p.hold then Hold.take(p.hold,item,n);p.cargo=Hold.totals(p.hold) else p.cargo[item]=p.cargo[item]-n end
+  Ship.updateMass(p)
+  -- goods are impounded into the station's stock; people walk off
+  if not require('src.data').items[item].passengers then Stock.add(u,here,item,n) end
+ end
+ Tasks.state(u).offers[t.id]=nil
+ t.settled=true
+ Tasks.release(u,r,'lapsed',u.clock)
+ if t.notable then require('src.notables').leftAt(u,t.notable,L.canonical(here)) end
+ return n>0 and ('Station staff took %s off your ship'):format(t.vipName or ('%d %s'):format(n,require('src.data').items[item].name)) or nil
 end
 
 function C.cargoMissing(game)
@@ -260,13 +320,24 @@ function C.cancel(game)
  if not here or not t then return nil,'Dock at a station to cancel your contract' end
  if t.kind=='passenger' then
   -- the party gets off here, unpaid
-  local p=game.player;local n=math.min(t.party or 0,p.cargo.passengers or 0)
+  local p=game.player;local item=t.item or 'passengers';local n=math.min(t.party or 0,p.cargo[item] or 0)
   if n>0 then
-   if p.hold then Hold.take(p.hold,'passengers',n);p.cargo=Hold.totals(p.hold) else p.cargo.passengers=p.cargo.passengers-n end
+   if p.hold then Hold.take(p.hold,item,n);p.cargo=Hold.totals(p.hold) else p.cargo[item]=p.cargo[item]-n end
    Ship.updateMass(p)
   end
   if t.phase=='delivery' then Tasks.state(game.universe).offers[t.id]=nil end
   Tasks.release(game.universe,owner(game.universe),'cancelled',game.universe.clock)
+  if t.notable and t.phase=='delivery' and n>0 then
+   -- a VIP put down where someone wants them is a VIP handed over (the
+   -- cartel holds anyone; a power hostile to the cartel arrests its people)
+   local NB,Rep=require('src.notables'),require('src.reputation')
+   local captor=Rep.ofNode(L.canonical(here))
+   if here~=t.source and NB.capture(game.universe,t.notable,here) then
+    return true,('%s handed over to %s'):format(t.vipName or 'The VIP',Rep.FACTIONS[captor].name)
+   end
+   NB.leftAt(game.universe,t.notable,L.canonical(here))
+   return true,('Contract cancelled: %s got off here'):format(t.vipName or 'the VIP')
+  end
   return true,t.phase=='delivery' and 'Contract cancelled: the party got off here' or 'Contract cancelled'
  end
  if t.phase=='delivery' then
