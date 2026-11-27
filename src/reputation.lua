@@ -114,7 +114,7 @@ end
 Rep.AREAS = {
 	mercury = "estates", venus = "estates", earth = "estates", luna = "estates", station = "estates",
 	mars = "zhuhai", phobos = "zhuhai", deimos = "zhuhai",
-	belt = "ceres", ceres_quarry = "ceres", quarry = "ceres",
+	belt = "ceres", ceres_quarry = "ceres", quarry = "ceres", ring = "ceres",
 	jupiter = "jove", io = "jove", europa = "jove", ganymede = "jove", callisto = "jove",
 	saturn = "diwan", enceladus = "diwan", titan = "diwan",
 	uranus = "bowman", titania = "bowman",

@@ -95,7 +95,7 @@ Capacities below are rated processing units per game hour. Recipes in one instal
 | Ceres Dock (`station:belt_1`) | `drills_works` | profit | 2 | drills S/M/L |
 | UAE-7 (`station:uranus_2`), Brute Industries Shipyard (`station:mercury_3`) | `engines_works` | profit | 1 each | engines S/M/L |
 | Ceres Dock (`station:belt_1`), Abaddon (`station:titan_2`) | `reactors_works` | profit | 1 each | reactors S/M/L |
-| Lumen Fabrication (`station:ring_2`), Pele Works (`station:io_1`) | `coil_works` | profit | 8 each | make_superconducting_coils |
+| Thule Prime (`station:luna_1`), Pele Works (`station:io_1`), Providence (`station:ring_1`), Lumen Fabrication (`station:ring_2`) | `coil_works` | profit | 8 each | make_superconducting_coils |
 | Pele Works (`station:io_1`), Haephestus Logistics (`station:mercury_2`) | `ceramic_works` | profit | 8 each | make_thermal_ceramics |
 | Ceres Quarry Depot (`station:ceres_quarry_1`), Quarry Ore Depot (`station:quarry_1`) | `metal_extraction` | fixed | 24 each | extract_heavy_metals |
 | Terminator Station (`station:mercury_1`) | `burn_hydrogen` | adaptive | -12 | burn_hydrogen |

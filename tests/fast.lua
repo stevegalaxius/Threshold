@@ -974,7 +974,7 @@ return function(game)
    local wants=0;for _,input in ipairs(C.inputs(C.byId['assemble_'..id])) do if data.modules[input.item] then wants=wants+input.n end end
    assert(wants==#loadout,id..': assembly does not take its modules')
   end end
-  assert(C.makes('station:mercury_4','scanner'),'nothing makes Deep Scanners')
+  assert(C.makes('station:luna_1','scanner'),'nothing makes Deep Scanners')
   local g=fresh();local u=g.universe;local S=require('src.npc_ship_supply');local D=require('src.dealers')
   local key=D.serviceYard('estates')
   assert(require('src.reserves').minimum(key,'scanner')>=Ind.serviceYardStock.scanner,'the yard keeps no scanners')
