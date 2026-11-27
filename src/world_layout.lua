@@ -57,7 +57,7 @@ W.stations = {
 	},
 	mars = {
 		{ id = "station:mars_1", facilities={redfu_assembly={capacity=2}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, layout = "shipyard_1", marketId = "market:mars_1", name = "Red Furnace Shipyard" },
-		{ id = "station:mars_2", facilities={coil_works={capacity=8},intaki_assembly={capacity=2}}, services = { "market", "shipyard", "hangar", "repair" }, marketId = "market:mars_2", spin = -0.05, phase = 2.3415926535897933, layout = "shipyard_1",   name = "Zhongke Intelligent Manufacturing" },
+		{ id = "station:mars_2", facilities={intaki_assembly={capacity=2}}, services = { "market", "shipyard", "hangar", "repair" }, marketId = "market:mars_2", spin = -0.05, phase = 2.3415926535897933, layout = "shipyard_1",   name = "Zhongke Intelligent Manufacturing" },
 		-- Zhuhai's logistics hub: Mars's production is on the Heaven-Ladder,
 		-- the two orbital stations are shipyards, and freight meets here
 		{ id = "station:mars_4", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:mars_4", name = "Zhuhai Logistics", layout = "customs_1", hub = true },
@@ -91,7 +91,7 @@ W.stations = {
 	},
 
 	io = {
-		{ id = "station:io_1", facilities={ceramic_works={capacity=8},acid_works={capacity=16,surface=true}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:io_1", name = "Pele Works", layout = "jovian_works" },
+		{ id = "station:io_1", facilities={ceramic_works={capacity=8},coil_works={capacity=8},acid_works={capacity=16,surface=true}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:io_1", name = "Pele Works", layout = "jovian_works" },
 		{ id = "station:io_2", facilities={lasers_works={capacity=2}}, services = { "market", "hangar", "repair" }, marketId = "market:io_2", spin = -0.05, phase = 2.3415926535897933, name = "Loki Laboratory", layout = "jovian_observatory" },
 		{ id = "station:io_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:io_3", name = "Io Customs", layout = "customs_1", customs = true },
 	},
@@ -158,7 +158,7 @@ W.stations = {
 			{ to = "station:ring_2", kind = "work", weight = 3 },
 			{ to = "station:mars_5", kind = "visit", weight = 1 } } } },
 		-- An electronics fab off Ring Station: silicon and acids in, boards out.
-		{ id = "station:ring_2", position = { x = 7000, y = -2500 }, facilities={coil_works={capacity=8},electronics={capacity=12}}, services = { "market", "hangar", "repair" }, spin = 0.03, marketId = "market:ring_2", name = "Lumen Fabrication", layout = "utility_exchange" },
+		{ id = "station:ring_2", position = { x = 7000, y = -2500 }, facilities={coil_works={capacity=8},electronics={capacity=12},utility_works={capacity=1}}, services = { "market", "hangar", "repair" }, spin = 0.03, marketId = "market:ring_2", name = "Lumen Fabrication", layout = "utility_exchange" },
 	},
 	-- Dark stations (src/dark.lua): pirate-run, off the public charts.
 	-- The Shoals has no planet: its three stations slowly circle their common
