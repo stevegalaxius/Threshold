@@ -134,6 +134,10 @@ Tasks.register('salvage',{
   local area=L.get(node).area
   local root=Fields.moons[area] and Fields.moons[area].parent or area
   if node~=o.source or o.system~=root or not L.byId[o.source] or not L.byId[o.target] then return false end
+  -- only where there's salvage to collect, and not more crews than pieces:
+  -- an always-open board sent haulers on thousands of empty sweeps an hour
+  local pieces,crews=require('src.offline_loot').supply(u,L.get(o.target).area,u.clock)
+  if pieces<=crews*T.salvagePiecesPerCrew then return false end
   local h=r.ship.hold and Hold.deserialize(r.ship.hold)
   if h then return Hold.room(h,'steel_plate',1)>0 end
   local used=0
