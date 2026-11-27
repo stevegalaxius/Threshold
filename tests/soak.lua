@@ -337,6 +337,8 @@ return function(game)
    end
   end
   local o={} for k,v in pairs(why) do o[#o+1]=k..'='..v end table.sort(o)
+  local ks=u.courierSkips or {};u.courierSkips=nil
+  say(('    aged trade runs kept trade-only this hour: target already stocked %d, buyer short of funds %d (per board refresh)'):format(ks.stocked or 0,ks.budget or 0))
   say(('    broke haulers %d: banned by a faction %d, not docked %d | port offers %s'):format(ships,banned,nowhere,table.concat(o,' ')))
  end
  local function walletLine()

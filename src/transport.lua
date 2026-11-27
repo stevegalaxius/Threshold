@@ -250,8 +250,11 @@ function Transport.refreshOffers(u,clock)
    local account=Accounts.of(o.target)
    if budget[account]==nil then budget[account]=Accounts.spendable(u,o.target) end
    local key=o.target..'|'..o.item
-   if clock-(o.placed or clock)>=T.tradeCourierAfter
-    and J.available(u,o.target,o.item)+(incoming[key] or 0)<Economy.target(u,o.target,o.item) then
+   -- (why an aged trade run stayed trade-only, for the soak: u.courierSkips)
+   local aged=clock-(o.placed or clock)>=T.tradeCourierAfter
+   local short=aged and J.available(u,o.target,o.item)+(incoming[key] or 0)<Economy.target(u,o.target,o.item)
+   if aged and not short then local k=u.courierSkips or {};u.courierSkips=k;k.stocked=(k.stocked or 0)+1 end
+   if aged and short then
     o.creditsPerUnit=data.items[o.item].volume*(T.freightCreditsPerM3+o.routeAU*T.freightCreditsPerM3AU)
     o.premiumPerUnit=0
     local cost=courierCost(u,o)
@@ -260,7 +263,7 @@ function Transport.refreshOffers(u,clock)
      incoming[key]=(incoming[key] or 0)+o.amount
      o.trade,o.tradeOptional=nil,true
      fresh=not wasOptional
-    end
+    else local k=u.courierSkips or {};u.courierSkips=k;k.budget=(k.budget or 0)+1 end
    end
   end
   if fresh then o.npcClaimAt=math.max(o.npcClaimAt or 0,clock+T.freightListingSeconds) end
