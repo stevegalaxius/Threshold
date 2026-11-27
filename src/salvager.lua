@@ -106,17 +106,27 @@ local function holdValue(hold,cargo)
  else for id,n in pairs(cargo or {}) do v=v+itemValue(id,n) end end
  return v
 end
+-- the steel a dead ship's hull strips to (src/offline_loot.lua), until stripped
+local function hullValue(w)
+ if w.stripped or not (w.ship and data.hulls[w.ship.hull]) then return 0 end
+ local ok,steel=pcall(function() return require('src.game').wreckSteel(data.hulls[w.ship.hull]) end)
+ return ok and itemValue('steel_plate',steel or 0) or 0
+end
 function S.pieces(u,clock)
  local list={}
- local function add(area,id,value)
+ local function add(area,id,value,hull)
+ value=value+(hull or 0)
+  -- (an emptied wreck or container is no salvage: it was being claimed again
+  -- and again after it had been stripped)
+  if (value or 0)<=0 then return end
   local f=Fields[area];if not f or f.instance then return end
   local root=Fields.moons[area] and Fields.moons[area].parent or area
   if not S.hasWork(root) then return end
   local target=L.station(area,'trade') or L.station(root,'trade')
-  if target then list[#list+1]={area=area,root=root,id=id,target=target,value=value} end
+  if target then list[#list+1]={area=area,root=root,id=id,target=target,value=value,hullOnly=value==(hull or 0) and (hull or 0)>0} end
  end
  for id,w in pairs(u.alifeWrecks or {}) do
-  if clock<w.expires then add(w.area,'w:'..id,holdValue(w.ship and w.ship.hold,w.ship and w.ship.cargo)+(T.salvageHullValue or 0)) end
+  if clock<w.expires then add(w.area,'w:'..id,holdValue(w.lootHold or w.ship and w.ship.hold,not w.lootHold and w.ship and w.ship.cargo or nil),hullValue(w)) end
  end
  for area,a in pairs(u.areas or {}) do for _,o in ipairs(a.objects or {}) do
   if (o.kind=='husk' or o.kind=='container') and o.hold then add(area,'o:'..tostring(o.id),holdValue(o.hold)) end
@@ -131,9 +141,15 @@ function S.refresh(u,clock)
  local specs={}
  for _,p in ipairs(S.pieces(u,clock)) do
   specs[#specs+1]={kind='salvage',source=p.target,target=p.target,system=p.root,item=p.id,piece=p.id,
-   pieceArea=p.area,value=p.value,cooldown=30}
+   pieceArea=p.area,value=p.value,hullOnly=p.hullOnly or nil,cooldown=30}
  end
  Tasks.sync(u,'salvage',specs,function(o)return o.kind=='salvage' end)
+ -- a listing kept from the last refresh takes what its piece is worth now
+ local now={} for _,spec in ipairs(specs) do now[spec.piece]=spec end
+ for _,o in pairs(Tasks.state(u).offers) do
+  local spec=o.kind=='salvage' and o.piece and now[o.piece]
+  if spec then o.value,o.hullOnly=spec.value,spec.hullOnly end
+ end
 end
 function S.seed(game) S.refresh(game.universe,game.universe.clock) end
 Tasks.register('salvage',{
@@ -156,6 +172,8 @@ Tasks.register('salvage',{
  eligible=function(u,r,o,node)
   -- any trade station in the wreck's planet system can send a crew
   if not o.piece then return false end -- (a pre-per-piece listing in an old save)
+  -- a stripped hull is only worth it to a crew that can drill it for steel
+  if o.hullOnly and not require('src.wreck_salvage').weapon(r.ship) then return false end
   local area=L.get(node).area
   local root=Fields.moons[area] and Fields.moons[area].parent or area
   if o.system~=root or not L.byId[o.target] then return false end
