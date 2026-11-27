@@ -440,7 +440,7 @@ return function(game)
   say(('    consignment: %d loads on credit now, %.0f cr outstanding | settled this hour %d, repaid %.0f, written off %.0f'):format(consigned,owed,ct.settled or 0,ct.repaid or 0,ct.unpaid or 0))
   local o={} for k,v in pairs(why) do o[#o+1]=k..'='..v end table.sort(o)
   local ks=Transport.courierSkips or {};Transport.courierSkips={}
-  say(('    aged trade runs kept trade-only this hour: target already stocked %d, buyer short of funds %d (per board refresh)'):format(ks.stocked or 0,ks.budget or 0))
+  say(('    aged trade runs kept trade-only this hour: target already stocked %d, buyer short of funds %d (per board refresh) | losing trade runs taken off the board %d'):format(ks.stocked or 0,ks.budget or 0,ks.expired or 0))
   say(('    broke haulers %d: banned by a faction %d, not docked %d | port offers %s'):format(ships,banned,nowhere,table.concat(o,' ')))
  end
  local function walletLine()

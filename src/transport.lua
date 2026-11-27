@@ -265,6 +265,17 @@ function Transport.refreshOffers(u,clock)
      fresh=not wasOptional
     else local k=Transport.courierSkips;if k then k.budget=(k.budget or 0)+1 end end
    end
+   -- A trade run to a buyer that's already stocked, whose one unit sells
+   -- there for no more than it costs at the source, can never pay: no
+   -- trader takes it, and it holds the seller's stock and the buyer's
+   -- 'incoming' so nothing that pays is posted instead. It comes off the
+   -- board; Economy posts a fresh run if the buyer runs short again. (A
+   -- shortage bid is funded at landed cost and keeps its own price.)
+   if o.trade and aged and not short and not o.shortageBid
+    and require('src.markets').price(u,o.target,o.item)<=Transport.goodsPrice(u,o.source,o.item) then
+    Tasks.state(u).offers[o.id]=nil;fresh=false
+    local k=Transport.courierSkips;if k then k.expired=(k.expired or 0)+1 end
+   end
   end
   if fresh then o.npcClaimAt=math.max(o.npcClaimAt or 0,clock+T.freightListingSeconds) end
  end
