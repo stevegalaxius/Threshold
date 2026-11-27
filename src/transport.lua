@@ -453,6 +453,8 @@ function Transport.settleConsigned(u,r,line)
   require('src.accounts').receive(u,seller,paid,'sold',line.item)
  end
  if paid<owed then Transport.answer(u,r,seller,-(owed-paid)/owed) end
+ local k=Transport.consignTally -- (set only while a soak runs)
+ if k then k.repaid=(k.repaid or 0)+paid;k.unpaid=(k.unpaid or 0)+owed-paid;k.settled=(k.settled or 0)+1 end
 end
 function Transport.load(u,r,t)
  local fit=fitter(r);local totals={}

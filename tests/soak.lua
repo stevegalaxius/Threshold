@@ -61,6 +61,7 @@ return function(game)
  -- skipped hours in physics runs.
  local Economy=require('src.economy')
  require('src.transport').courierSkips={} -- see brokeFreightLine
+ require('src.transport').consignTally={}
  local soakLedger={items={}}
  local rawLedger=Economy.ledger
  Economy.ledger=function(uu,key,kind,n,item)
@@ -342,7 +343,8 @@ return function(game)
    if r.state~='dead' and t and t.kind=='transport' then for _,line in ipairs(t.manifest or {t}) do
     if line.consigned then consigned=consigned+1;owed=owed+line.consigned end end end
   end
-  say(('    consignment: %d loads carried on credit, %.0f cr owed to sellers'):format(consigned,owed))
+  local ct=Transport.consignTally or {};Transport.consignTally={}
+  say(('    consignment: %d loads on credit now, %.0f cr outstanding | settled this hour %d, repaid %.0f, written off %.0f'):format(consigned,owed,ct.settled or 0,ct.repaid or 0,ct.unpaid or 0))
   local o={} for k,v in pairs(why) do o[#o+1]=k..'='..v end table.sort(o)
   local ks=Transport.courierSkips or {};Transport.courierSkips={}
   say(('    aged trade runs kept trade-only this hour: target already stocked %d, buyer short of funds %d (per board refresh)'):format(ks.stocked or 0,ks.budget or 0))
