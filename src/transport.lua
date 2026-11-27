@@ -502,16 +502,29 @@ end
 -- this pilot can finance or is trusted to deliver.
 local function freightTerms(u,r,o,capacity)
  local price=Transport.goodsPrice(u,o.source,o.item)
- local spendable=math.max(0,(r.credits or 0)-T.tradeReserve)+Transport.consignLimit(u,r,o.source)
- local units=price>0 and math.min(capacity,math.floor(spendable/price)) or capacity
- local value
- if o.shortageBid then
-  value=Transport.tradeValue(u,{target=o.target,item=o.item,amount=units,shortageBid=o.shortageBid})
- else
-  local priceAtDelivery=require('src.markets').expectedTradePrice(u,o.target,o.item,units)
-  value=math.floor(priceAtDelivery*units+.5)
+ local cash=math.max(0,(r.credits or 0)-T.tradeReserve)
+ local credit=Transport.consignLimit(u,r,o.source)
+ local function profitAt(n)
+  local value
+  if o.shortageBid then
+   value=Transport.tradeValue(u,{target=o.target,item=o.item,amount=n,shortageBid=o.shortageBid})
+  else
+   value=math.floor(require('src.markets').expectedTradePrice(u,o.target,o.item,n)*n+.5)
+  end
+  return value-math.floor(price*n+.5)
  end
- local profit=value-math.floor(price*units+.5)
+ -- The biggest lot isn't always the best: a large one drives the buyer's
+ -- price down. Weigh the lot cash alone buys, the one consignment credit
+ -- stretches to, and half of that, and take the most profitable. (Sizing
+ -- every lot to the credit limit turned profitable cash trades into
+ -- 'not worth it' and cut delivered freight by a third.)
+ local units,profit=0,-math.huge
+ local most=price>0 and math.min(capacity,math.floor((cash+credit)/price)) or capacity
+ local cashOnly=price>0 and math.min(capacity,math.floor(cash/price)) or capacity
+ for _,n in ipairs({cashOnly,most,math.floor(most/2)}) do
+  if n>=1 then local p=profitAt(n);if p>profit then units,profit=n,p end end
+ end
+ if units<1 then units,profit=0,0 end
  local courierUnits,fee=0,0
  if o.tradeOptional then
   courierUnits=math.min(capacity,Transport.trustedUnits(u,r,o))
