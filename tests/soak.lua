@@ -338,7 +338,7 @@ return function(game)
    local other=e.delta-(e.freight+e.salvage+e.sales-e.spent-e.trade-e.rest)
    q[#q+1]=('%s %d broke of %d (mean %.0f cr, freight +%.0f, salvage +%.0f, fuel and supplies -%.0f, trade goods -%.0f, trade sales +%.0f, shore leave -%.0f, other %+.0f, net %+.0f%s)'):format(k,e.broke,e.n,e.credits/math.max(1,e.n),e.freight,e.salvage,e.spent,e.trade,e.sales,e.rest,other,e.delta,#d>0 and ('; broke doing '..table.concat(d,',')) or '')
   end
-  say('    wallets (alive ships; a ship's first sample is its baseline): '..table.concat(q,' | '))
+  say("    wallets (alive ships; a ship's first sample is its baseline): "..table.concat(q,' | '))
   local jj={} for k,v in pairs(jobs) do jj[#jj+1]=k..'='..math.floor(v) end table.sort(jj)
   say('    hauler supplies by job: '..table.concat(jj,' '))
  end
