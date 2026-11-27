@@ -15,7 +15,7 @@ end
 local function leash(ch) if not Con().inRange(ch) then return 'fled' end end
 -- Everything illegal that's still aboard, merged with what was dumped.
 local function found(ch)
- local list,n,value=Con().manifest(u(ch),ch.v.faction,ch.listener)
+ local list,n,value=Con().manifest(u(ch),ch.v.faction,ch.listener,ch.v.deep)
  return list,n,value
 end
 return {
@@ -43,14 +43,14 @@ return {
     { "Run", pick=run },
    } },
   scanning={
-   text='"Scanning. Hold position."',
-   timeout=T.inspectScanTime, onTimeout='scan', tick=leash, hold=true,
+   text=function(ch) return ch.v.scanner and '"Scanning. Hold position."' or '"No scanner aboard. Hold still while we look you over."' end,
+   timeout=function(ch) return ch.v.scanTime or T.inspectScanTime end, onTimeout='scan', tick=leash, hold=true,
    options={ { "Run", pick=run } } },
   scan={
    enter=function(ch)
     local list,n,value=found(ch)
     ch.v.list,ch.v.units,ch.v.value=list,n,value
-    if ch.v.dumped or n>0 and math.random()<T.inspectDetect then return 'caught' end
+    if ch.v.dumped or n>0 and math.random()<(ch.v.detect or T.inspectDetect) then return 'caught' end
     return 'clean'
    end },
   caught={
@@ -68,7 +68,7 @@ return {
   waved={ text='"...Scanner must be on the blink. Move along."' },
   bribeRefused={
    text='"Attempted bribery is noted. Scanning now."',
-   timeout=T.inspectScanTime, onTimeout='scan', tick=leash, hold=true,
+   timeout=function(ch) return ch.v.scanTime or T.inspectScanTime end, onTimeout='scan', tick=leash, hold=true,
    options={ { "Run", pick=run } } },
   ran={ text='"All units: {listener.name} is running from inspection."' },
   fled={ enter=run },

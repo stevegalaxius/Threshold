@@ -2125,12 +2125,14 @@ function Game:eject(e, id, count, inner)
 	local side = (random() - 0.5) * e.hull.radius
 	if data.items[id].kind == "container" then
 		local back2 = e.tailX - 40
+		local boxes = {}
 		for _ = 1, count do
 			local box = self:spawnContainer(x + c * back2 - s * side, y + s * back2 + c * side, id, false, inner)
 			box.body:setLinearVelocity(vx - c * 60, vy - s * 60)
+			boxes[#boxes + 1] = box
 		end
 		self:toast(("-%d %s"):format(count, data.items[id].name), 1.2, "pickup")
-		events.emit("eject", e, id, count)
+		events.emit("eject", e, id, count, nil, boxes)
 		return
 	end
 	-- a VIP pushed out of the hold is an airlock (src/notables.lua): what

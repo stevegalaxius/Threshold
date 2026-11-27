@@ -31,32 +31,80 @@ function C.illegal(u,faction,item)
 end
 function C.inspects(u,faction) return faction and Rep.stance(faction,Rep.CARTEL,u)=='hostile' or false end
 
--- What a ship carries that faction outlaws: { {id,n}, ... }, units, value.
-function C.manifest(u,faction,e)
- local list,n,value={},0,0
- for id,k in pairs(e.cargo or {}) do
-  if k>0 and C.illegal(u,faction,id) then
-   list[#list+1]={id=id,n=k};n=n+k;value=value+k*(data.items[id].price or 0)
+-- Everything in a hold by item, with what's packed in containers carried
+-- in it counted separately: open[id], packed[id]. A ship with no grid hold
+-- has only e.cargo (all open).
+function C.contents(e)
+ local open,packed={},{}
+ local function walk(h,into)
+  for _,g in ipairs(h.grids) do
+   for _,st in ipairs(g.stacks) do
+    if st.inner then walk(st.inner,packed) end
+    into[st.id]=(into[st.id] or 0)+st.n
+   end
   end
  end
- table.sort(list,function(a,b) return a.id<b.id end)
+ if e.hold then walk(e.hold,open)
+ else for id,k in pairs(e.cargo or {}) do open[id]=k end end
+ return open,packed
+end
+
+-- What a ship carries that faction outlaws: { {id,n,packed}, ... }, units,
+-- value. deep: also what's packed inside containers (a Deep Scanner sees it;
+-- a look without one doesn't).
+function C.manifest(u,faction,e,deep)
+ local list,n,value={},0,0
+ local open,packed=C.contents(e)
+ local function add(t,isPacked)
+  for id,k in pairs(t) do
+   if k>0 and C.illegal(u,faction,id) then
+    list[#list+1]={id=id,n=k,packed=isPacked or nil};n=n+k;value=value+k*(data.items[id].price or 0)
+   end
+  end
+ end
+ add(open)
+ if deep~=false then add(packed,true) end
+ table.sort(list,function(a,b) if a.id~=b.id then return a.id<b.id end return not a.packed and b.packed end)
  return list,n,value
 end
 function C.describe(list)
+ local count,order={},{}
+ for _,s in ipairs(list) do
+  if not count[s.id] then order[#order+1]=s.id end
+  count[s.id]=(count[s.id] or 0)+s.n
+ end
  local parts={}
- for _,s in ipairs(list) do parts[#parts+1]=('%d %s'):format(s.n,data.items[s.id].name) end
+ for _,id in ipairs(order) do parts[#parts+1]=('%d %s'):format(count[id],data.items[id].name) end
  return #parts>0 and table.concat(parts,', ') or 'nothing'
 end
 
--- Take the listed goods out of e's hold for good (seized, not ejected).
+-- Take the listed goods out of e's hold for good (seized, not ejected),
+-- from containers in it too.
+local function takeDeep(h,id,n)
+ local Hold=require('src.inventory.hold')
+ local got=Hold.take(h,id,n)
+ for _,g in ipairs(h.grids) do
+  for _,st in ipairs(g.stacks) do
+   if got>=n then return got end
+   if st.inner then got=got+takeDeep(st.inner,id,n-got) end
+  end
+ end
+ return got
+end
 function C.seize(e,list)
  local Hold=require('src.inventory.hold');local Ship=require('src.ship')
  for _,s in ipairs(list) do
-  if e.hold then Hold.take(e.hold,s.id,s.n);e.cargo=Hold.totals(e.hold)
+  if e.hold then takeDeep(e.hold,s.id,s.n)
   else e.cargo[s.id]=nil end
  end
- Ship.updateMass(e)
+ if e.hold then e.cargo=Hold.totals(e.hold) end
+ e.massDirty=true
+ if e.body then Ship.updateMass(e) end
 end
+
+-- The Deep Scanner a ship carries (data/modules.lua, computer 'scanner'):
+-- it reads ship holds as well as wrecks and containers.
+function C.scanner(game,e) return game:computer(e,'scanner') end
 
 -- Wanted: that power's police shoot on sight until it lapses.
 function C.wanted(u,faction)
@@ -130,14 +178,42 @@ end
 -- Contraband dumped while police are inspecting you counts as found: they
 -- note it (ch.v.dumped) and pull it in. The scan's result fines it like
 -- anything still aboard.
-require('src.events').on('eject',function(e,id,count,pickup)
- local ch=e.comms
- if not ch or ch.closed or ch.scriptId~='inspection' or ch.listener~=e then return end
- if not C.illegal(ch.game.universe,ch.v.faction,id) then return end
+-- A dumped container: the patrol takes the whole box.
+function C.scoopBox(game,box)
+ for i,e in ipairs(game.entities) do if e==box then table.remove(game.entities,i);break end end
+ if box.body and not box.body:isDestroyed() then box.body:destroy() end
+ box.removed=true
+end
+local function noteDump(ch,id,n)
  local v=ch.v
  v.dumped=v.dumped or {}
- v.dumped[#v.dumped+1]={id=id,n=count}
- v.dumpedValue=(v.dumpedValue or 0)+count*(data.items[id].price or 0)
+ v.dumped[#v.dumped+1]={id=id,n=n}
+ v.dumpedValue=(v.dumpedValue or 0)+n*(data.items[id].price or 0)
+end
+require('src.events').on('eject',function(e,id,count,pickup,boxes)
+ local ch=e.comms
+ if not ch or ch.closed or ch.scriptId~='inspection' or ch.listener~=e then return end
+ local u=ch.game.universe
+ if boxes then
+  -- containers: what's packed inside them, the same as if loose
+  local any
+  for _,box in ipairs(boxes) do
+   local found=false
+   for inner,k in pairs(require('src.inventory.hold').totals(box.hold)) do
+    if C.illegal(u,ch.v.faction,inner) then noteDump(ch,inner,k);found=true end
+   end
+   -- packed containers inside the box
+   local _,packed=C.contents({hold=box.hold})
+   for inner,k in pairs(packed) do
+    if C.illegal(u,ch.v.faction,inner) then noteDump(ch,inner,k);found=true end
+   end
+   if found then C.scoopBox(ch.game,box);any=true end
+  end
+  if any and e.isPlayer then ch.game:toast('PATROL SEIZED THE DUMPED CONTAINER',2) end
+  return
+ end
+ if not C.illegal(u,ch.v.faction,id) then return end
+ noteDump(ch,id,count)
  C.scoop(ch.game,pickup)
  if e.isPlayer then ch.game:toast(('PATROL SEIZED THE DUMPED %s'):format(data.items[id].name:upper()),2) end
 end)
@@ -150,11 +226,21 @@ function C.inRange(ch)
  return (x1-x2)^2+(y1-y2)^2<T.inspectLeash^2
 end
 
+-- How a patrol looks: with a Deep Scanner it reads the hold (and into
+-- containers when the scanner has depth) in its scanTime; without one it's
+-- a slower, patchier look by eye that misses packed containers.
+function C.method(game,police)
+ local sc=C.scanner(game,police)
+ if sc then return {deep=sc.depth==true,time=sc.scanTime or T.inspectScanTime,detect=T.inspectDetect,scanner=true} end
+ return {deep=false,time=T.inspectScanTime*2,detect=T.inspectDetectByEye,scanner=false}
+end
+
 function C.inspect(game,police,ship,faction)
  local u=game.universe
- local list,n,value=C.manifest(u,faction,ship)
+ local how=C.method(game,police)
+ local list,n,value=C.manifest(u,faction,ship,how.deep)
  return require('src.comms').open(game,'inspection',police,ship,{
-  faction=faction,list=list,units=n,value=value,
+  faction=faction,list=list,units=n,value=value,deep=how.deep,scanTime=how.time,detect=how.detect,scanner=how.scanner,
   bribe=math.floor(math.max(T.bribeMin,value*T.bribeShare)),
   fine=0,seized='nothing'})
 end

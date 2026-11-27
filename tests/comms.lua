@@ -67,7 +67,7 @@ return function(game)
  assert(ch.v.units==5 and ch.v.value==5*900,'manifest')
  Comms.choose(ch,1)                                -- Comply
  assert(ch.node=='scanning','comply should start a scan')
- game.time=game.time+T.inspectScanTime+.1;Comms.update(game)
+ game.time=game.time+T.inspectScanTime*2+.1;Comms.update(game)
  math.random=real
  assert(ch.node=='caught' and (Hold.totals(p.hold).fentanyl or 0)==0,'contraband not seized')
  assert(u.credits==10000-4500 and Rep.standing(u,'estates')<before,'fine or standing')
@@ -80,7 +80,7 @@ return function(game)
  game:eject(p,'fentanyl',2)
  assert(#game.pickups==pickups and ch.v.dumpedValue==1800,'dumped contraband was not scooped')
  local credits=u.credits
- Comms.choose(ch,1);game.time=game.time+T.inspectScanTime+.1;Comms.update(game)
+ Comms.choose(ch,1);game.time=game.time+T.inspectScanTime*2+.1;Comms.update(game)
  assert(ch.node=='caught' and u.credits==credits-1800,'dumped contraband was not fined')
  Comms.close(ch)
  -- complying and then flying off is running
@@ -107,6 +107,26 @@ return function(game)
  local back=p.comms
  assert(back and back.scriptId=='robbery' and back.speaker==raider and raider.request and raider.request.channel==back,'restore')
  require('src.handover').close(raider.request);Comms.reset();game.alifeOnline['npc/test']=nil
+ -- packed containers: counted when the scan has depth, seized from inside
+ local bigHold=Hold.new({{key='main',name='Main',w=12,h=12}})
+ local inner=Hold.new({{key='main',name='Box',w=4,h=4}})
+ Hold.add(inner,'fentanyl',3)
+ assert(Hold.placeStack(bigHold,{id='cargo_container',n=1,inner=inner}),'could not pack the container')
+ local smuggler={kind='ship',hold=bigHold,cargo=Hold.totals(bigHold),hull=p.hull,loadout={},stats=p.stats}
+ local _,shallow=Con.manifest(u,'estates',smuggler,false)
+ local deepList,deep=Con.manifest(u,'estates',smuggler,true)
+ assert(shallow==0 and deep==3 and deepList[1].packed,'packed contraband: shallow '..shallow..' deep '..deep)
+ Con.seize(smuggler,deepList)
+ assert((Hold.totals(inner).fentanyl or 0)==0,'packed contraband not seized')
+ -- a dumped container full of it is found and taken whole
+ local box=Hold.new({{key='main',name='Box',w=4,h=4}});Hold.add(box,'amphetamines',4)
+ ch=Con.inspect(game,police,p,'estates')
+ local before=#game.entities
+ game:eject(p,'cargo_container',1,box)
+ assert(#game.entities==before and ch.v.dumped and ch.v.dumped[1].id=='amphetamines','dumped container not seized')
+ Comms.close(ch)
+ -- the Deep Scanner is how a patrol scans: without one it looks by eye
+ assert(not Con.method(game,police).scanner and Con.method(game,{loadout={'scanner'},hull={slots={{}}}}).deep,'scan method')
  -- running: wanted until it lapses
  ch=Con.inspect(game,police,p,'estates')
  Comms.choose(ch,#Comms.options(ch))
