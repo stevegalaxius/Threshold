@@ -7,7 +7,7 @@ W.stations = {
 
 	-- Planetary industry (refining, acids, nitrates, ocean water) ships up to
 	-- each system's logistics hub by rocket: it appears there, not at the
-	-- station that used to make it. Every system has one (the Ring's is Ring Station
+	-- station that used to make it. Every system has one (the Ring's is Providence
 	-- itself; small moons go through their customs depot instead), so every cross-system trade goes hub to hub.
 	-- surface=true marks a facility down on the planet or moon.
 	mercury = {
@@ -152,13 +152,13 @@ W.stations = {
 		{ id = "station:pluto_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, primary = true, uses = { pirateBase = true }, layout = "jovian_kink", marketId = "market:pluto_1", name = "Milliways Freeport", hub = true },
 	},
 	ring = {
-		{ id = "station:ring_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.04, primary = true, name = "Ring Station", marketId = "market:ring_1", layout = "ring_horseshoe",
+		{ id = "station:ring_1", facilities={utility_works={capacity=1}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.04, primary = true, name = "Providence", marketId = "market:ring_1", layout = "ring_horseshoe",
 		  -- the big ring is a town as well as a market (src/passengers.lua)
 		  residential = { population = 5000, homes = 12, routes = {
 			{ to = "station:ring_2", kind = "work", weight = 3 },
 			{ to = "station:mars_5", kind = "visit", weight = 1 } } } },
-		-- An electronics fab off Ring Station: silicon and acids in, boards out.
-		{ id = "station:ring_2", position = { x = 7000, y = -2500 }, facilities={coil_works={capacity=8},electronics={capacity=12},utility_works={capacity=1}}, services = { "market", "hangar", "repair" }, spin = 0.03, marketId = "market:ring_2", name = "Lumen Fabrication", layout = "utility_exchange" },
+		-- An electronics fab off Providence: silicon and acids in, boards out.
+		{ id = "station:ring_2", position = { x = 7000, y = -2500 }, facilities={coil_works={capacity=8},electronics={capacity=12}}, services = { "market", "hangar", "repair" }, spin = 0.03, marketId = "market:ring_2", name = "Lumen Fabrication", layout = "utility_exchange" },
 	},
 	-- Dark stations (src/dark.lua): pirate-run, off the public charts.
 	-- The Shoals has no planet: its three stations slowly circle their common

@@ -2,7 +2,7 @@
 	Notables: the world's named, unique people (src/notables.lua).
 
 	Not pilots. Each one lives at a seat, rides between a few stations as a
-	VIP passenger, and leaders also go to summits at Ring Station. They
+	VIP passenger, and leaders also go to summits at Providence. They
 	never respawn. When one dies (or is captured) the world changes for
 	good: their role says how, and the numbers below say how much.
 
@@ -212,7 +212,7 @@ D.headlines = {
 	hostile = { "{name}, {office}, is dead, and few here will weep", "Good riddance: {name} killed" },
 	other = { "{name}, {office}, killed", "Death of {name} shakes {faction}" },
 	captured = { "{name} taken: {office} held at {station}" },
-	summit = { "Summit at Ring Station: {names} to attend", "Grand summit: every leader bound for Ring Station" },
+	summit = { "Summit at Providence: {names} to attend", "Grand summit: every leader bound for Providence" },
 }
 
 return D
