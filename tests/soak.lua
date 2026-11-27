@@ -55,25 +55,25 @@ return function(game)
  local watch={'deuterium_canister','steel_plate','flare'}
  for _,id in ipairs({'ammo_kinetic','missile','ammo_small','slug'}) do if data.items[id] then watch[#watch+1]=id end end
  local function sumShort() local n=0 for _,v in pairs(u.accountSubsidy or {}) do n=n+v end return n end
- local ledgerFrom,ledgerAt,ledgerLast=nil,nil,{}
- -- The ledger is bucketed by absolute game hour, which needn't line up with
- -- soak hours: merge every bucket completed since the previous sample (empty
- -- if none completed) instead of reading one by index, which repeated a
- -- bucket whenever two samples fell in the same game hour.
+ -- Tally the ledger per soak hour as it is written. Game hours don't track
+ -- soak hours (a side scene stops the clock; the player's interplanetary
+ -- flight jumps it), so reading u.economyLedger by u.clock repeated or
+ -- skipped hours in physics runs.
+ local Economy=require('src.economy')
+ local soakLedger={items={}}
+ local rawLedger=Economy.ledger
+ Economy.ledger=function(uu,key,kind,n,item)
+  rawLedger(uu,key,kind,n,item)
+  if uu~=u or not n or n<=0 or not key then return end
+  soakLedger[kind]=(soakLedger[kind] or 0)+n
+  if item then local k=kind..':'..item;soakLedger.items[k]=(soakLedger.items[k] or 0)+n end
+ end
+ local sampleCount=0
+ local ledgerAt,ledgerLast=nil,{items={}}
  local function ledgerSince()
-  local cur=math.floor(u.clock/3600)
-  if ledgerAt==cur then return ledgerLast end
-  ledgerAt=cur
-  local from=ledgerFrom or cur-1;ledgerFrom=cur
-  local m={items={}}
-  for hr=from,cur-1 do local b=u.economyLedger and u.economyLedger.hours[hr]
-   if b then for k,v in pairs(b) do
-    if k=='items' then for ik,iv in pairs(v) do m.items[ik]=(m.items[ik] or 0)+iv end
-    else m[k]=(m[k] or 0)+v end
-   end end
-  end
-  ledgerLast=m
-  return m
+  if ledgerAt==sampleCount then return ledgerLast end
+  ledgerAt=sampleCount;ledgerLast=soakLedger;soakLedger={items={}}
+  return ledgerLast
  end
  local sample
  sample=function(h,wall)
@@ -127,6 +127,7 @@ return function(game)
  local prevSample=sample
  local lastShort={}
  sample=function(h,wall)
+  sampleCount=sampleCount+1
   prevSample(h,wall)
   local lh=ledgerSince()
   say(('    sold: %s'):format(top(lh,'sold',6)))
