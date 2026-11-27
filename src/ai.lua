@@ -440,7 +440,10 @@ local function trade(game, e, dt)
 			if stop.kind == "station" and stop.body and stop.body.getFixtures then
 				lineStart = hullRadius(stop) + (e.halfLength or 100) + T.npcDockMarker
 			end
-			if planned then
+			if stop.city and game.well and stop.body then
+				sx, sy = require("src.queue").cityHoldPoint(game, e, stop, queuePlace)
+				staging = true
+			elseif planned then
 				local slot = max(1, queuePlace - (runwayBusy and 0 or 1))
 				local DA = require("src.dock_approach")
 				local waiting = e.dockStaging
@@ -452,7 +455,7 @@ local function trade(game, e, dt)
 			end
 			if not staging then sx, sy = require("src.queue").holdPoint(queued, game.universe.clock, e.routeIndex, queuePlace, lineStart) end
 		else
-			e.dockStaging = nil
+			e.dockStaging, e.cityHold = nil, nil
 		end
 		-- the driver is taken (the player sitting in it, or a ship launching)
 		-- and this one has no turn booked to wait for: line up behind it anyway

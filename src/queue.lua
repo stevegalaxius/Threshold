@@ -355,6 +355,31 @@ function Q.holdPoint(r,clock,index,place,start)
  return x+dx/d*back-dy/d*across,y+dy/d*back+dx/d*across
 end
 
+-- Cloud cities (Jupiter, Uranus) sit down in the clouds with a tunnel open
+-- at both ends. A line back along the way in ran across the city, through
+-- the gravity band or into the planet, so their lines work differently:
+-- two rows along an arc above the band, one running out from each end of
+-- the tunnel, first in line nearest the city. A ship keeps the end it
+-- picked when it joined; it drops in when its turn comes.
+function Q.cityHoldPoint(game,e,stop,place)
+ local w=game.well
+ local AI=require('src.ai')
+ local cx,cy=stop.body:getPosition()
+ local ca=math.atan2(cy-w.y,cx-w.x)
+ local x,y=e.body:getPosition()
+ local hold=e.cityHold
+ if not hold or hold.stop~=stop then
+  local off=(math.atan2(y-w.y,x-w.x)-ca+math.pi)%(2*math.pi)-math.pi
+  hold={stop=stop,side=off<0 and -1 or 1};e.cityHold=hold
+ end
+ local a,b=Q.spreadOf(e.alifeId)
+ local R=w.radius+T.surfacePullRange+1000+(a*.5+.5)*T.dockWaitSpread*.5
+ local along=AI.hullRadius(stop)+(e.halfLength or 100)+T.npcDockMarker
+  +T.queueGap*((place or 1)-1)+b*T.queueGap*T.queueSpread*.5
+ local ang=ca+hold.side*along/R
+ return w.x+math.cos(ang)*R,w.y+math.sin(ang)*R
+end
+
 function Q.label(r,clock,game)
  if not Q.waiting(r,clock,game) then return end
  local n=Q.place(r,clock,game)
