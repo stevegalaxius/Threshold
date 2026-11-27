@@ -418,7 +418,13 @@ local function trade(game, e, dt)
 				e.dockMarker = true
 			elseif not lined then
 				local mx = max(d.x2 + d.runway * 1.5, hullRadius(stop) + (e.halfLength or 100) + T.npcDockMarker)
-				local px, py = mx + (d.xc or 0), d.yc or 0
+				-- each ship its own spot round the marker, inside the cone, so
+				-- a planet-side port's traffic doesn't gather on one point
+				-- off each end of the runway
+				local fa, fb = require("src.queue").spreadOf(e.alifeId)
+				mx = mx + (fa * 0.5 + 0.5) * T.dockWaitSpread
+				local across = fb * min(T.dockWaitSpread * 0.5, (mx - d.x2) * T.npcDockCone * 0.8)
+				local px, py = mx + (d.xc or 0), (d.yc or 0) + across
 				sx, sy = stop.body:getWorldPoint(px * c - py * s, px * s + py * c)
 				e.dockMarker = true
 			else e.dockMarker = nil end
