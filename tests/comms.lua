@@ -127,6 +127,20 @@ return function(game)
  Comms.close(ch)
  -- the Deep Scanner is how a patrol scans: without one it looks by eye
  assert(not Con.method(game,police).scanner and Con.method(game,{loadout={'scanner'},hull={slots={{}}}}).deep,'scan method')
+ -- Deep Scanner: ships in range are scanned without hovering; leaving range drops it
+ local SS=require('src.ship_scan')
+ local slot;for i,sl in ipairs(p.hull.slots) do if sl.family=='utility' then slot=i;break end end
+ local oldMod=p.loadout[slot];p.loadout[slot]='scanner'
+ local sx,sy=p.body:getPosition()
+ local where={sx+500,sy}
+ local target={kind='ship',cargo={fentanyl=1},body={getPosition=function() return where[1],where[2] end}}
+ table.insert(game.entities,target)
+ SS.update(game);assert(SS.progress(game,target)==0,'scan did not start in range')
+ game.time=game.time+3.1;SS.update(game);assert(SS.progress(game,target)==1,'scan did not finish')
+ where[1]=sx+5000;SS.update(game);assert(SS.progress(game,target)==nil,'scan kept out of range')
+ where[1]=sx+500;SS.update(game);assert(SS.progress(game,target)==0,'scan did not restart')
+ for i,e in ipairs(game.entities) do if e==target then table.remove(game.entities,i);break end end
+ p.loadout[slot]=oldMod
  -- running: wanted until it lapses
  ch=Con.inspect(game,police,p,'estates')
  Comms.choose(ch,#Comms.options(ch))
