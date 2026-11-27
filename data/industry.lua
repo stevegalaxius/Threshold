@@ -127,10 +127,29 @@ D.assemblyParts.estates_rapier={electronics=16,steel=6}
 D.assemblyParts.estates_bastion={electronics=38,steel=15}
 D.assemblyParts.diwan_cherubim={electronics=25,steel=6}
 D.assemblyParts.diwan_seraph={electronics=36,steel=9}
+-- A military yard fits its hulls from modules it buys in, not ones it
+-- makes up: each service hull's stock loadout (data/ships/<hull>.lua, kept
+-- in step by tests/fast.lua) is an input of its assembly, so freight
+-- brings the yard its guns, engines, reactors and computers.
+D.serviceFits={
+ estates_whisper={'missile_s_base','flit_engine','ember_reactor','flare_pod','nav_computer'},
+ estates_rapier={'artillery_l_base','gun_s_base','gun_s_base','mule_engine','kiln_reactor','tug_beam','nav_computer'},
+ estates_bastion={'artillery_l_base','artillery_l_base','gun_m_base','gun_m_base','gun_m_base','gun_m_base','cinder_drive','forge_reactor','nav_computer','fire_computer'},
+ diwan_cherubim={'gun_m_base','gun_m_base','missile_l_base','mule_engine','kiln_reactor','tug_beam','nav_computer'},
+ diwan_seraph={'gun_l_base','missile_l_base','missile_l_base','flit_engine','flit_engine','kiln_reactor','tug_beam','nav_computer'},
+}
+-- Police pilots are issued a Deep Scanner on top (src/npc_ship_supply.lua
+-- swaps it in for a utility module); the yard keeps this many on its
+-- shelf for that (src/reserves.lua).
+D.serviceYardStock={scanner=4}
 for _,set in ipairs({D.lineups,D.serviceLineups}) do for _,hulls in pairs(set) do for _,hull in ipairs(hulls) do
  local n=D.assemblyFrames[hull];local parts=D.assemblyParts[hull]
+ local inputs={{item='hull_frame',n=n},{item='electronics',n=parts.electronics},{item='steel_plate',n=parts.steel}}
+ local fit,order={},{}
+ for _,id in ipairs(D.serviceFits[hull] or {}) do if not fit[id] then order[#order+1]=id end;fit[id]=(fit[id] or 0)+1 end
+ for _,id in ipairs(order) do inputs[#inputs+1]={item=id,n=fit[id]} end
  D.recipes[#D.recipes+1]={id='assemble_'..hull,group='ship_assembly',market=false,storefront=false,stockless=true,time=n,
-  inputs={{item='hull_frame',n=n},{item='electronics',n=parts.electronics},{item='steel_plate',n=parts.steel}},outputs={{kind='ship',hull=hull,n=1}}}
+  inputs=inputs,outputs={{kind='ship',hull=hull,n=1}}}
 end end end
 D.recipes[#D.recipes+1]={id='grow_food',consumption='food',market=false,item='food_crate',cap=4000,inputs={{item='fertilizer',n=1/20}},foodIndependent=true}
 D.recipes[#D.recipes+1]={id='receive_surface_food',consumption='food',market=false,item='food_crate',cap=8000,foodIndependent=true}
@@ -185,9 +204,13 @@ D.moduleLines={
  drills={maker='Ceres Concern',modules={{'drill_s_base',6,3500},{'drill_m_base',14,9000},{'drill_l_base',34,24000}}},
  engines={modules={{'flit_engine',6,3000,1,1},{'mule_engine',16,9000,2,2},{'cinder_drive',40,26000,4,4}}},
  reactors={modules={{'ember_reactor',5,2500,1,1,1},{'kiln_reactor',14,8000,2,2,1},{'forge_reactor',32,21000,4,4,1}}},
+ -- computers and utility gear (Halcyon Arms and the Estates military
+ -- designs it builds under licence): police yards and outfitters buy these
+ utility={maker='Halcyon Arms',modules={{'nav_computer',1,2500},{'fire_computer',1,6000},{'scanner',1,4500},
+  {'tug_beam',3,3500},{'flare_pod',2,3000}}},
 }
 -- fixed order, so recipe lists come out the same every run
-D.moduleLineOrder={'launchers','guns','bays','lasers','drills','engines','reactors'}
+D.moduleLineOrder={'launchers','guns','bays','lasers','drills','engines','reactors','utility'}
 for _,line in ipairs(D.moduleLineOrder) do
  local def,ids=D.moduleLines[line],{}
  for i,m in ipairs(def.modules) do

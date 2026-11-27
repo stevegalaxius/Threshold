@@ -14,7 +14,16 @@ function R.minimum(key,item)
  if v==nil then v=minimum(key,item);if require('src.locations').byId[key] then memo[k]=v end end
  return v
 end
-minimum=function(key,item)
+-- A military yard's shelf for the gear it issues with its hulls
+-- (data/industry.lua D.serviceYardStock), on top of any other minimum.
+local function yardStock(key,item)
+ local n=(require('data.industry').serviceYardStock or {})[item];if not n then return 0 end
+ local def=require('src.dealers').def(key)
+ return def and def.service and n or 0
+end
+local base
+minimum=function(key,item) return base(key,item)+yardStock(key,item) end
+base=function(key,item)
  local policy=R.policies[item];if not policy then return 0 end
  local L=require('src.locations');local place=L.byId[key]
  if not place then return 0 end

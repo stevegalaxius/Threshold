@@ -156,6 +156,9 @@ function S.seed(u,area,role)
  -- The world was running before the game began: what a dealer happens to
  -- have on its lot or shelf this minute doesn't decide what it flies.
  local ship=S.generated(u,policy,nil,area,true)
+ -- (the police already flying were issued their scanners before the game
+ -- began, the way they carry full magazines)
+ if ship and fleet then S.issueGear(u,nil,ship,policy) end
  return ship,policy
 end
 -- A seeded pilot set up like an arrival: its rank, its pocket money and
@@ -242,8 +245,32 @@ function S.fromYard(u,faction,policy,request)
  if state.serviceOrders then state.serviceOrders[request or ('service/'..best.hull)]=nil end
  D.take(u,key,best.id)
  local ship=D.ship(best)
+ S.issueGear(u,key,ship,policy)
  require('src.simulation_history').note(u,'npc_ship_issued',u.clock,nil,{},{station=key,hull=best.hull,lot=best.id},key)
  return ship,{source='yard',station=key,hull=best.hull,price=0,lot=best.id}
+end
+-- A police pilot leaves the yard with a Deep Scanner off its shelf, in
+-- place of the hull's non-navigation utility module (that goes back on the
+-- shelf for the next assembly). No scanner in stock: they fly without one
+-- and inspect by eye (src/contraband.lua).
+function S.issueGear(u,key,ship,policy)
+ if (policy and policy.role)~='patrol' then return end
+ local hull=data.hulls[ship.hull];if not hull then return end
+ local Stock=require('src.stockpile')
+ for _,id in ipairs(ship.loadout) do if id=='scanner' then return end end
+ local slot
+ for i,s in ipairs(hull.slots) do
+  local id=ship.loadout[i];local m=id and data.modules[id]
+  if data.fits(s,data.modules.scanner) and (not id or m and m.computer~='nav') then
+   if not id then slot=i;break end
+   slot=slot or i
+  end
+ end
+ if not slot or key and not Stock.take(u,key,'scanner',1) then return end
+ local old=ship.loadout[slot]
+ if old and key then Stock.add(u,key,old,1) end
+ ship.loadout[slot]='scanner'
+ return true
 end
 function S.complete(u,r,acquisition,policy)
  if policy.rank then r.rank=policy.rank;r.rankXp=require('src.npc_rank').tiers[policy.rank].xp end

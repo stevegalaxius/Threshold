@@ -963,5 +963,30 @@ return function(game)
   end
   print(('ok  wildcats: crew of %d, raid and home, bounty, %d dead after the hunters%s'):format(#crew,dead,inst.done and ', site cleared' or ''))
  end
+ -- Police gear comes through the economy: a service hull's assembly takes
+ -- its stock modules, and a police pilot is issued a scanner off the shelf.
+ do
+  local data=require('src.data');local Ind=require('data.industry');local C=require('src.commodities')
+  for _,hulls in pairs(Ind.serviceLineups) do for _,id in ipairs(hulls) do
+   local fit=Ind.serviceFits[id];local loadout=data.hulls[id].loadout
+   assert(fit and #fit==#loadout,id..': D.serviceFits out of step with its hull')
+   for i=1,#loadout do assert(fit[i]==loadout[i],id..': D.serviceFits out of step with its hull') end
+   local wants=0;for _,input in ipairs(C.inputs(C.byId['assemble_'..id])) do if data.modules[input.item] then wants=wants+input.n end end
+   assert(wants==#loadout,id..': assembly does not take its modules')
+  end end
+  assert(C.makes('station:mars_2','scanner'),'nothing makes Deep Scanners')
+  local g=fresh();local u=g.universe;local S=require('src.npc_ship_supply');local D=require('src.dealers')
+  local key=D.serviceYard('estates')
+  assert(require('src.reserves').minimum(key,'scanner')>=Ind.serviceYardStock.scanner,'the yard keeps no scanners')
+  local ship={hull='estates_rapier',loadout={}};for i,id in ipairs(data.hulls.estates_rapier.loadout) do ship.loadout[i]=id end
+  Stock.take(u,key,'scanner',Stock.count(u,key,'scanner'))
+  assert(not S.issueGear(u,key,ship,{role='patrol'}),'issued a scanner with none in stock')
+  for _,id in ipairs(ship.loadout) do assert(id~='scanner','issued a scanner with none in stock') end
+  local before=Stock.count(u,key,'scanner');Stock.add(u,key,'scanner',1)
+  assert(S.issueGear(u,key,ship,{role='patrol'}),'no scanner issued')
+  local has=false;for _,id in ipairs(ship.loadout) do has=has or id=='scanner';assert(id~='tug_beam','the scanner should replace the tug beam') end
+  assert(has and Stock.count(u,key,'scanner')==before and Stock.count(u,key,'tug_beam')>=1,'scanner swap did not go through the yard shelf')
+  print('ok  police gear: yards import their modules and issue scanners from stock')
+ end
  print('ALL TESTS PASSED')
 end
