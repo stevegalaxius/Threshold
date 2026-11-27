@@ -44,11 +44,20 @@ end
 ---------------------------------------------------------------- flags and log
 
 function WS.flag(u, name) return u.worldstate and u.worldstate.flags[name] end
+-- The log is history for people (the debug view, soak dumps), never read
+-- by the game: flags and mods hold everything that matters. So it keeps
+-- only the newest WS.T.logMax lines, and counts what it dropped.
+WS.T = { logMax = 200 }
 function WS.note(u, kind, text, data)
 	local s = WS.state(u)
 	local e = { clock = u.clock or 0, kind = kind, text = text }
 	if data then for k, v in pairs(data) do e[k] = v end end
 	s.log[#s.log + 1] = e
+	local over = #s.log - WS.T.logMax
+	if over > 0 then
+		for _ = 1, over do table.remove(s.log, 1) end
+		s.dropped = (s.dropped or 0) + over
+	end
 	return e
 end
 function WS.set(u, name, value, cause)
@@ -62,7 +71,14 @@ end
 
 ---------------------------------------------------------------- the index
 
+-- The index, rebuilt only when the mods change: per target, per place,
+-- the product of everything that applies there, faction-wide effects
+-- already spread onto each of the faction's stations. A lookup is then
+-- one or two table reads, with no ownership or id work on the hot path
+-- (market prices, facility rates).
+--   i.mul[target][where] = { all = product, [sub] = product }
 local cache = setmetatable({}, { __mode = "k" })
+local stationsOf
 local function index(u)
 	local s = u.worldstate
 	if not s then return nil end
@@ -72,8 +88,12 @@ local function index(u)
 	for _, m in ipairs(s.mods) do
 		if m.kind == "mul" then
 			local t = i.mul[m.target] or {}; i.mul[m.target] = t
-			local key = m.where .. "|" .. (m.sub or "*")
-			t[key] = (t[key] or 1) * m.by
+			local places = { m.where }
+			if m.where:match("^faction:") then for _, id in ipairs(stationsOf(m.where)) do places[#places + 1] = id end end
+			for _, w in ipairs(places) do
+				local e = t[w] or { all = 1 }; t[w] = e
+				if m.sub then e[m.sub] = (e[m.sub] or 1) * m.by else e.all = e.all * m.by end
+			end
 		elseif m.kind == "beat" then
 			i.beats[m.outlet] = i.beats[m.outlet] or {}
 			i.beats[m.outlet][m.from] = true
@@ -84,21 +104,15 @@ local function index(u)
 end
 
 -- The product of every lasting multiplier on target at where (and sub).
--- A station also takes its owner's faction-wide ones.
+-- where is a canonical station id, an outlet, or 'faction:<id>'; a
+-- station already includes its owner's faction-wide effects.
 function WS.mul(u, target, where, sub)
 	local i = index(u)
 	local t = i and i.mul[target]
-	if not t or not where then return 1 end
-	local v = (t[where .. "|*"] or 1)
-	if sub then v = v * (t[where .. "|" .. sub] or 1) end
-	if where:match("^station:") then
-		local f = require("src.reputation").ofNode(require("src.locations").canonical(where))
-		if f then
-			v = v * (t["faction:" .. f .. "|*"] or 1)
-			if sub then v = v * (t["faction:" .. f .. "|" .. sub] or 1) end
-		end
-	end
-	return v
+	local e = t and where and t[where]
+	if not e then return 1 end
+	if sub then return e.all * (e[sub] or 1) end
+	return e.all
 end
 -- outlet -> { [outlet whose beat it took over] = true }
 function WS.beats(u)
@@ -108,7 +122,7 @@ end
 
 ---------------------------------------------------------------- effects
 
-local function stationsOf(where)
+stationsOf = function(where)
 	local L = require("src.locations")
 	local f = where:match("^faction:(.+)$")
 	if not f then return L.byId[where] and { where } or {} end

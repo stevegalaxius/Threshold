@@ -43,7 +43,9 @@ local function drawPassengerActive(game,f,t)
  text(r.x+14,r.y+48,r.w-230,('%s · %s · %s'):format(from(f,t.source),reach(t),purpose(t)),13)
  local detail=pickup and ('Next: board the party at %s (%d free climate seats).'):format(name(t.source),t.party) or ('Next: fly them to %s and drop them off.'):format(name(t.target))
  if not pickup and (game.player.cargo[t.item or 'passengers'] or 0)<t.party then detail='Passengers missing.' end
- if t.notable and not pickup then detail=detail..' Cancel elsewhere to hand them over; eject them in space to space them.' end
+ if t.notable and not pickup then detail=detail..' Eject them in space to space them.' end
+ if t.lapsed then detail='Overdue: the next station you dock at will take them off your ship.'
+ elseif t.deadline then detail=detail..(' Due in %s.'):format(minutes(t.deadline-game.universe.clock)) end
  text(r.x+14,r.y+76,r.w-230,detail,14,HUD.INK)
  text(r.x+14,r.y+108,r.w-230,'The fare was locked when you accepted.',13,HUD.DIM)
  local destination=pickup and t.source or t.target

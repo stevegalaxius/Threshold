@@ -140,22 +140,48 @@ return function()
   assert(WS.flag(pu,NB.flag(here.id))=='dead')
  end
 
- -- capture: a VIP put down at another faction's station
+ -- handing over: the powers won't hold each other's people, the cartel
+ -- holds anyone's; and a run that goes overdue costs standing and ends at
+ -- the next dock
  do
   local en=NB.defs.estates_journalist
   local cg=Game.new({preview=true});cg.autosaveOff=true
   local cu=cg.universe;NB.state(cu)
   cg:spawnPlayer('amw_wayfarer')
-  local o=P.postVIP(cu,en,en.seat,en.circuit[1],cu.clock)
   local station=Board.station
-  Board.station=function() return en.seat end
-  local ok,why=Board.accept(cg,o.id)
-  assert(ok,'could not accept: '..tostring(why))
+  local function book()
+   local o=P.postVIP(cu,en,NB.person(cu,en.id).at,en.circuit[1],cu.clock)
+   NB.person(cu,en.id).trip={offer=o.id,to=en.circuit[1]}
+   Board.station=function() return NB.person(cu,en.id).at end
+   local ok,why=Board.accept(cg,o.id)
+   assert(ok,'could not accept: '..tostring(why))
+   assert(Board.active(cg).deadline,'VIP run has no deadline')
+   return o
+  end
+  book()
   Board.station=function() return 'station:mars_4' end
   local done,msg=Board.cancel(cg)
+  assert(done,msg)
+  assert(NB.alive(cu,en.id) and NB.person(cu,en.id).at=='station:mars_4','Zhuhai took an Estates editor hostage: '..tostring(msg))
+  -- overdue: standing lost, held aboard, taken off at the next dock
+  book()
+  local s0=Rep.standing(cu,'estates')
+  Board.expire(cu,Board.active(cg).deadline+1)
+  assert(Board.active(cg).lapsed and Rep.standing(cu,'estates')<s0,'overdue run cost nothing')
+  NB.update(cu,cu.clock+1)
+  assert(NB.person(cu,en.id).trip,'held VIP counted as a missed trip')
+  Board.station=function() return 'station:mars_2' end
+  local taken=Board.collectLapsed(cg)
+  assert(taken and not Board.active(cg) and (cg.player.cargo.vip or 0)==0,'lapsed VIP not taken off at the dock')
+  assert(NB.person(cu,en.id).at=='station:mars_2' and not NB.person(cu,en.id).trip)
+  -- the cartel takes them (once the Estates will book you again)
+  Rep.addStanding(cu,'estates',40)
+  book()
+  Board.station=function() return 'station:pluto_1' end
+  done,msg=Board.cancel(cg)
   Board.station=station
   assert(done,msg)
-  assert(NB.person(cu,en.id).status=='captured','handing over did not capture: '..tostring(msg))
+  assert(NB.person(cu,en.id).status=='captured','the cartel did not take them: '..tostring(msg))
   assert(WS.flag(cu,NB.flag(en.id))=='captured')
  end
 
@@ -170,13 +196,21 @@ return function()
   if p.trip and p.trip.to==D.summit.station then going=going+1 end
  end
  assert(going==#sm.attendees,'summit leaders did not post their runs')
- -- run it out: offers expire, they arrive off-board, then go home
+ -- run it out: the first is flown in; nobody takes the others' runs,
+ -- so they miss it (an event quests can use)
+ local missedEvents=0
+ local off=require('src.events').on('notable_missed_summit',function() missedEvents=missedEvents+1 end)
+ local first=sm.attendees[1];local invited=#sm.attendees
+ NB.delivered(u,{notable=first},{player=false},D.summit.station)
  for id,o in pairs(Tasks.state(u).offers) do if o.notable then Tasks.state(u).offers[id]=nil end end
  NB.update(u,u.clock+1)
- for _,id in ipairs(sm.attendees) do assert(NB.person(u,id).at==D.summit.station,'leader never reached the summit') end
- local attendees,closes=sm.attendees,sm.closes
+ require('src.events').off('notable_missed_summit',off)
+ assert(#sm.attendees==1 and sm.attendees[1]==first and NB.person(u,first).at==D.summit.station,'summit attendance wrong')
+ assert(missedEvents==invited-1 and #(sm.missed or {})==invited-1,'missed summits not reported')
+ for _,id in ipairs(sm.missed or {}) do assert(NB.person(u,id).at==NB.defs[id].seat,'a leader who missed the run moved anyway') end
+ local closes=sm.closes
  NB.update(u,closes+1)
- for _,id in ipairs(attendees) do assert(NB.person(u,id).trip,'leader did not head home') end
+ assert(NB.person(u,first).trip,'leader did not head home')
  -- a grand summit: every living leader
  sm.n=D.summit.grandEvery-1;sm.next=closes+1+D.summit.lead
  for id,o in pairs(Tasks.state(u).offers) do if o.notable then Tasks.state(u).offers[id]=nil end end
@@ -187,5 +221,10 @@ return function()
  assert(sm.grand and #sm.attendees==alive,('grand summit should bring all %d living leaders, got %d'):format(alive,#(sm.attendees or {})))
 
  assert(#WS.report(u)>3)
+ -- the log keeps only its newest lines
+ for i=1,WS.T.logMax+50 do WS.note(u,'test','line '..i) end
+ assert(#WS.state(u).log==WS.T.logMax and WS.state(u).log[#WS.state(u).log].text=='line '..(WS.T.logMax+50),'log not capped')
+ -- faction-wide effects are spread onto each station at index time
+ assert(WS.mul(u,'price','station:venus_1','food_crate')==WS.mul(u,'price','faction:estates','food_crate'))
  print(('ok  notables: %d cast valid, role consequences, save, VIP airlock and capture, summits'):format(#D.cast))
 end

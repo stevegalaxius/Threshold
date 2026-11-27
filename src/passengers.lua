@@ -190,6 +190,7 @@ function P.postVIP(u,n,source,target,clock)
  local NT=require('data.notables').T
  local o={kind='passenger',source=source,target=target,purpose='vip',party=1,item=P.vip,amount=1,
   notable=n.id,vipName=n.name,faction=n.faction,fareMult=NT.fareMult,comfortMin=NT.comfortMin,standingMin=NT.standingMin,
+  timeLimit=NT.deadline,lapseStanding=NT.lapseStanding,deadline=clock+NT.expiry+NT.deadline,
   requires={capabilities={'climate'}},posted=clock,expires=clock+NT.expiry}
  routeAU(o,clock)
  return Tasks.post(u,o)
@@ -328,6 +329,9 @@ Tasks.register('passenger',{
  release=function(u,r,t,reason,clock)
   if t.phase~='delivery' then return end
   if r.ship then disembark(r,t.party,t) end
+  -- a notable put down mid-run stays where the carrier is (the player's
+  -- own contract settles that in src/player_contracts.lua)
+  if t.notable and not r.player and not t.settled then require('src.notables').leftAt(u,t.notable,L.canonical(r.node or t.source)) end
   if not t.settled and r.state~='dead' and r.state~='escaped' then Transport.answer(u,r,t.target,-1) end
   Tasks.state(u).offers[t.id]=nil
  end,

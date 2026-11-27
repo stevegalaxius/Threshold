@@ -154,7 +154,10 @@ D.T = {
 	tripEvery = 2 * 3600,  -- a journalist or magnate rides somewhere about this often
 	tripJitter = 1800,
 	stay = 1800,           -- and stays at least this long wherever they land
-	expiry = 1800,         -- a VIP contract nobody takes: they go by their own staff's ship, off-board
+	expiry = 1800,         -- a VIP contract nobody takes this long: they miss the trip
+	deadline = 2 * 3600,   -- from booking, to have them delivered; overdue, a carrier gives them up,
+	                       -- and a player loses standing and has them taken off at the next dock
+	lapseStanding = -10,   -- with their faction, for an overdue run
 	fareMult = 8,          -- times an ordinary single fare
 	comfortMin = 0.5,      -- seats this comfortable or better
 	standingMin = -15,     -- their staff won't book a captain their faction is wary of

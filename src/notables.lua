@@ -108,14 +108,40 @@ function N.leftAt(u, id, station)
 	if n and p and p.status == "alive" then arrive(u, n, p, station, "left the ship") end
 end
 
--- A trip that ended without a delivery: the offer is gone (expired
--- untaken, or released). They make it with their own staff.
+-- A trip that never happened: nobody took the run before it expired,
+-- or the carrier gave up before boarding them. They stay where they are
+-- and miss it. A missed summit is an event (and a flag on the summit
+-- record) quests can hang on.
+local function missed(u, n, p, clock)
+	local trip = p.trip
+	p.trip, p.next = nil, clock + D.T.stay
+	WS.note(u, "travel", ("%s missed their %s run to %s"):format(n.name, trip.why or "", stationName(trip.to)), { notable = n.id })
+	if trip.why == "summit" then
+		local sm = N.state(u).summit
+		sm.missed = sm.missed or {}
+		sm.missed[#sm.missed + 1] = n.id
+		for i, id in ipairs(sm.attendees or {}) do if id == n.id then table.remove(sm.attendees, i); break end end
+		WS.note(u, "summit", ("%s will miss the summit"):format(n.name), { notable = n.id })
+		require("src.events").emit("notable_missed_summit", n.id, sm.n)
+	end
+end
+-- They're aboard a ship whose contract lapsed (src/player_contracts.lua):
+-- whoever has them aboard still has them until the next dock.
+function N.held(u, id)
+	local p = N.person(u, id)
+	if p and p.trip then p.trip.held = true end
+end
 local function settleTrips(u, clock)
 	local offers = Tasks.state(u).offers
 	for id, p in pairs(N.state(u).people) do
 		local n = N.defs[id]
-		if n and p.status == "alive" and p.trip and not offers[p.trip.offer] then
-			arrive(u, n, p, p.trip.to, "own staff")
+		if n and p.status == "alive" and p.trip and not p.trip.held and not offers[p.trip.offer] then missed(u, n, p, clock) end
+		-- a carrier that took the run and never finished it in time: it
+		-- gives them up (aboard, they get off where it is; src/passengers.lua)
+		local o = n and p.trip and not p.trip.held and offers[p.trip.offer]
+		if o and o.owner and o.owner ~= "player" and clock > (o.deadline or math.huge) then
+			local r = u.npcs and u.npcs[o.owner]
+			if r and r.task and r.task.id == o.id then Tasks.release(u, r, "VIP run overdue", clock) else offers[o.id] = nil end
 		end
 	end
 end
@@ -144,6 +170,7 @@ local function announce(u, sm, clock)
 		end
 	end
 	sm.attendees, sm.grand, sm.opens = {}, grand, clock + D.summit.lead
+	sm.missed = {}   -- who was invited and never made it (src/notables.lua missed)
 	sm.closes = sm.opens + D.summit.length
 	local names, empty = {}, 0
 	for _, n in ipairs(picked) do
@@ -254,16 +281,28 @@ local function finish(u, id, status, ctx)
 end
 function N.kill(u, id, ctx) ctx = ctx or {}; return finish(u, id, "dead", ctx) end
 
+-- Would the faction that owns station take this notable off your hands?
+-- The powers aren't at odds enough to hold each other's people. The
+-- cartel will hold anyone's for ransom, and a power hostile to the cartel
+-- will arrest a cartel notable.
+function N.takesCaptive(u, id, station)
+	local n = N.defs[id]
+	local Rep = require("src.reputation")
+	local captor = n and Rep.ofNode(L.canonical(station))
+	if not captor or captor == n.faction then return false end
+	if captor == Rep.CARTEL then return true end
+	return n.faction == Rep.CARTEL and Rep.stance(captor, Rep.CARTEL, u) == "hostile"
+end
 -- Handed over at station by the player: out of office for good, and the
--- faction holding them is grateful.
+-- faction holding them is grateful. Their own faction knows who had them.
 function N.capture(u, id, station)
 	local n = N.defs[id]
-	if not n then return false end
+	if not n or not N.takesCaptive(u, id, station) then return false end
 	local Rep = require("src.reputation")
 	local captor = Rep.ofNode(L.canonical(station))
 	local area = L.byId[station] and L.byId[station].area
 	local ok = finish(u, id, "captured", { how = "handed over at " .. stationName(station), station = station, by = "player",
-		area = area, witnessed = Rep.ofArea(area) == n.faction })
+		area = area, witnessed = true })
 	if ok and captor and captor ~= n.faction then Rep.addStanding(u, captor, -D.roles[n.role].deed * .3) end
 	return ok
 end
@@ -289,41 +328,15 @@ function N.survived(u, id, station)
 	if n and p and p.status == "alive" then arrive(u, n, p, station or n.seat, "escaped the wreck in a pod") end
 end
 
--- Who saw the airlock: the faction in its own space, or anyone in sight
--- (a station, or another ship of theirs within range).
-N.T.witnessRange = N.T.witnessRange or 2500
-function N.witnessed(game, n)
-	local Rep = require("src.reputation")
-	local area = game.fieldId
-	if Rep.ofArea(area) == n.faction then return true end
-	local p = game.player
-	if not (p and p.body) then return false end
-	local px, py = p.body:getPosition()
-	for _, e in ipairs(game.entities or {}) do
-		if e ~= p and not e.dead and not e.removed and e.body then
-			local mine = false
-			if e.kind == "station" then
-				local ok, key = pcall(require("src.stockpile").key, e)
-				mine = ok and key and Rep.ofNode(L.canonical(key)) == n.faction or false
-			elseif e.kind == "ship" then mine = Rep.ofRecord(e.alifeRecord) == n.faction end
-			if mine then
-				local x, y = e.body:getPosition()
-				if (x - px) ^ 2 + (y - py) ^ 2 < N.T.witnessRange ^ 2 then return true end
-			end
-		end
-	end
-	return false
-end
-
 -- The player pushed the VIP out of the hold (src/game.lua Game:eject).
 function N.airlock(game)
 	local C = require("src.player_contracts")
 	local t = C.active(game)
 	if not (t and t.notable) then return false end
 	local u, n = game.universe, N.defs[t.notable]
-	local witnessed = N.witnessed(game, n)
+	-- their faction booked them onto your ship: it knows who did it, wherever it happened
 	C.endVIP(game, "spaced")
-	return N.kill(u, n.id, { how = "spaced from the player's airlock", by = "player", area = game.fieldId, witnessed = witnessed })
+	return N.kill(u, n.id, { how = "spaced from the player's airlock", by = "player", area = game.fieldId, witnessed = true })
 end
 
 -- Debug lines (F1 debug view, soak dumps).
