@@ -313,6 +313,8 @@ function S.hostile(game,e,o)
  if grant and actor.isPlayer then
   local Rep=require('src.reputation')
   local u=game.universe
+  -- ran from an inspection (src/contraband.lua): wanted until it lapses
+  if require('src.contraband').wanted(u,grant.issuer) then return true end
   return Rep.hostile(Rep.goodwill(u,r)+Rep.standing(u,grant.issuer)-Rep.heat(u,r.node))
  end
  if Access.defending(r,game.fieldId) then

@@ -214,6 +214,7 @@ end
 --                vx, vy }, or the field's spawn point
 function Game:loadField(id, opts)
 	opts = opts or {}
+	require("src.comms").reset()   -- conversations hold this map's ships
 	Mining.unload(self)
 	self.miningNext = nil
 	self:captureALife(true)
@@ -2400,6 +2401,9 @@ function Game:step(dt, sample)
 	if sample then markStep(sample, "sleepers") end
 	self:updateALife(nil,sample)
 	if sample then markStep(sample, "alife") end
+	-- ship-to-ship conversations, and police inspections that open them
+	require("src.comms").update(self)
+	require("src.contraband").update(self)
 	self:applyBoundary()
 	self:applyCurrent(dt)
 	require("src.satellites").keep(self, dt)
