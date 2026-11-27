@@ -556,6 +556,7 @@ local function run(u,clock,pause)
  memo={}
  local state=Tasks.state(u)
  Transport.refreshOffers(u,clock)
+ require('src.salvager').refresh(u,clock) -- salvage listings follow the wrecks
  -- count what's ordered or on the way; an order nobody has taken in
  -- E.expire seconds is withdrawn, to be placed again from wherever the
  -- stock is now

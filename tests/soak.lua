@@ -338,6 +338,16 @@ return function(game)
     end
    end
   end
+  local idle,waiting=0,{}
+  for _,r in pairs(u.npcs or {}) do
+   if r.state~='dead' and r.state~='escaped' and r.populationGroup=='hauler' and not r.task then
+    idle=idle+1;local k=r.taskStatus or '?';waiting[k]=(waiting[k] or 0)+1
+   end
+  end
+  local wl={} for k,v in pairs(waiting) do wl[#wl+1]=k..'='..v end table.sort(wl)
+  say(('    haulers without a job: %d [%s]'):format(idle,table.concat(wl,', ')))
+  local salvage=0 for _,o in pairs(Tasks.state(u).offers) do if o.kind=='salvage' then salvage=salvage+1 end end
+  say(('    salvage listings on the board: %d'):format(salvage))
   local consigned,owed=0,0
   for _,r in pairs(u.npcs or {}) do local t=r.task
    if r.state~='dead' and t and t.kind=='transport' then for _,line in ipairs(t.manifest or {t}) do

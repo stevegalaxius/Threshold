@@ -641,6 +641,7 @@ T.alifeGoneLinger=300
 
 T.wreckSteelPerTonne = 1 / 40   -- steel plates a drilled wreck yields, per tonne of hull
 T.salvagePiecesPerCrew=2 -- a salvage job is open only while its area holds more than this many pieces per crew already on it
+T.salvageTripCost=150 -- score a salvage listing loses for flying to another body (src/salvager.lua)
 T.npcSalvageRate=.9 -- NPC salvage sells at this share of the station's price (src/salvager.lua)
 T.salvagerCollectTime=180   -- salvage jobs fill the hold (src/scavenge.lua)
 T.salvagerRange,T.salvagerStay=6000,30
