@@ -90,8 +90,8 @@ W.stations = {
 	},
 	jupiter = {
 		{ id = "station:jupiter_1", facilities={skim_deuterium={capacity=4800},skim_hydrogen={capacity=20}}, services = { "market", "shipyard", "hangar" }, primary = true, marketId = "market:jupiter_1", name = "Olympus", adapter = "cloud" },
-		{ id = "station:jupiter_2", uses = { military = true }, facilities = { jove_assembly = { capacity = 2 } },
-		  services = { "shipyard", "hangar" }, spin = 0.05, phase = -0.8, marketId = "market:jupiter_2", name = "Kyrakos Naval Yard", layout = "jovian_shipyard" },
+		{ id = "station:jupiter_2", uses = { military = true },
+		  services = { "shipyard", "hangar" }, spin = 0.05, phase = -0.8, marketId = "market:jupiter_2", name = "Kyrakos", layout = "jovian_shipyard" },
 		{ id = "station:jupiter_3", facilities={use_medical={capacity=-4}}, services = { "market", "hangar", "repair" }, spin = -0.04, phase = 2.3415926535897933, marketId = "market:jupiter_3", name = "Jovian Logistics", layout = "customs_1", hub = true },
 				
 	},

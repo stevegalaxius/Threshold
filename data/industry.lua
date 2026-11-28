@@ -120,18 +120,14 @@ D.assemblyParts={mack_mustang={electronics=13,steel=7},
 D.serviceLineups={
  estates={'estates_whisper','estates_rapier','estates_bastion'},
  diwan={'diwan_cherubim','diwan_seraph'},
- jove={'jove_picket','jove_vigil'},
 }
 D.assemblyFrames.estates_whisper,D.assemblyFrames.estates_rapier,D.assemblyFrames.estates_bastion=1,2,4
 D.assemblyFrames.diwan_cherubim,D.assemblyFrames.diwan_seraph=2,4
-D.assemblyFrames.jove_picket,D.assemblyFrames.jove_vigil=1,3
 D.assemblyParts.estates_whisper={electronics=12,steel=1}
 D.assemblyParts.estates_rapier={electronics=16,steel=6}
 D.assemblyParts.estates_bastion={electronics=38,steel=15}
 D.assemblyParts.diwan_cherubim={electronics=25,steel=6}
 D.assemblyParts.diwan_seraph={electronics=36,steel=9}
-D.assemblyParts.jove_picket={electronics=7,steel=2}
-D.assemblyParts.jove_vigil={electronics=22,steel=7}
 -- A military yard fits its hulls from modules it buys in, not ones it
 -- makes up: each service hull's stock loadout (data/ships/<hull>.lua, kept
 -- in step by tests/fast.lua) is an input of its assembly, so freight
@@ -142,8 +138,6 @@ D.serviceFits={
  estates_bastion={'artillery_l_base','artillery_l_base','gun_m_base','gun_m_base','gun_m_base','gun_m_base','cinder_drive','forge_reactor','nav_computer','fire_computer'},
  diwan_cherubim={'gun_m_base','gun_m_base','missile_l_base','mule_engine','kiln_reactor','tug_beam','nav_computer'},
  diwan_seraph={'gun_l_base','missile_l_base','missile_l_base','flit_engine','flit_engine','kiln_reactor','tug_beam','nav_computer'},
- jove_picket={'pulse_s_base','flit_engine','ember_reactor','hold_pod_s','nav_computer'},
- jove_vigil={'pulse_m_base','pulse_m_base','flit_engine','flit_engine','kiln_reactor','tug_beam','nav_computer','fire_computer'},
 }
 -- Police pilots are issued a Deep Scanner on top (src/npc_ship_supply.lua
 -- swaps it in for a utility module); the yard keeps this many on its

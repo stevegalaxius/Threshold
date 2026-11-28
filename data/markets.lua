@@ -36,8 +36,8 @@ local generalStore = {
 market { id = "market:general", station = "General store", sells = generalStore }
 market { id = "market:jupiter_1", station = "Olympus", sells = generalStore }
 market { id = "market:jupiter_2", station = "Kyrakos Naval Yard",
-	dealer = { name = "Kyrakos Naval Yard", hulls = { "jove_picket", "jove_vigil" },
-		lots = 8, assembly = "jove_assembly", service = "jove", civilianExchange = "station:jupiter_1" }, sells = {} }
+	dealer = { name = "Kyrakos Naval Yard", hulls = {}, lots = 0,
+		service = "jove", civilianExchange = "station:jupiter_1" }, sells = {} }
 -- Residential services do not grant ship sales; passenger refits stay available.
 market { id = "market:venus_1", station = "Hub Station", sells = {
 	{ "climate_pod_s", 1 }, { "nav_computer", 1 },

@@ -46,7 +46,7 @@ local Dark=require('src.dark')
 local E={scaleMin=.25,scaleMax=4,scaleStep=.05,tick=60,lot=120,hours=2,halfLife=4*3600,expire=1200,reserveHours=1,scope='economy'}
 local useLocalReserve={
  fertilizer=true,explosives=true,medical_supplies=true,water=true,[Food.item]=true,
- industrial_acids=true,superconducting_coils=true,thermal_ceramics=true,
+ superconducting_coils=true,thermal_ceramics=true,
 }
 -- Every trade station keeps at least this much of these on hand.
 E.floor={deuterium_canister=40}
@@ -660,8 +660,6 @@ local function run(u,clock,pause)
  -- to buyers that found no stock anywhere (missed[maker][item])
  local missed={}
  for _,item in ipairs(goods()) do
-  local moduleRecipe=require('src.data').items[item].kind=='module' and C.byItem(item)[1]
-  local moduleStockCap=moduleRecipe and moduleRecipe.cap
   -- One rule for every good. A station that makes it keeps E.reserveHours
   -- of its own use and offers the rest. Any other station wants E.hours of
   -- its use; below that it buys back up to twice that, and anything over
@@ -744,9 +742,6 @@ local function run(u,clock,pause)
      -- compact goods (ammunition) have value-based lots bigger than any
      -- maker's shelf, so otherwise no order was ever posted
      if starving then need=math.min(need,math.max(T.orderMinLoad,E.lot)) end
-     -- A complete shelf of individually fitted modules can be smaller than
-     -- a normal freight lot. Let it move through customs and on to a yard.
-     if moduleStockCap then need=math.min(need,moduleStockCap) end
      local early=not entry.bridgeETA or (L.byId[s].area==L.byId[c].area and clock+180<entry.bridgeETA)
      if early and s~=c and spare[s]>=math.min(need,short) and (pass==2 or Dark.isDarkNode(s)==darkBuyer) and routed(hubPlan,s,c,item) then
       local k=s..'>'..c

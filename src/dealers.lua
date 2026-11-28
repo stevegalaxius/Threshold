@@ -366,7 +366,7 @@ function D.serviceYard(faction)
  for _,area in ipairs(require('src.fields').list) do
   for _,key in ipairs(require('src.locations').stations(area,'military')) do
    local def=D.def(key)
-   if def and def.service==faction then return key end
+   if def and def.service==faction and #def.hulls>0 then return key end
   end
  end
 end
