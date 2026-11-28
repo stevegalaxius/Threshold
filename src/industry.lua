@@ -125,6 +125,8 @@ end
 function I.scale(u,key,c)
  local v,id=rawScale(u,key,c)
  if v>0 and u.worldstate then v=v*require('src.worldstate').mul(u,'output',key,id) end
+ -- a drug a station takes runs with its crises (src/crisis.lua)
+ if c.crisis then v=v*require('src.crisis').useScale(u,key,c) end
  return v
 end
 -- Short operating buffers follow allocated work and actual output room.

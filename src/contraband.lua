@@ -1,8 +1,10 @@
 --[[
 	Contraband: cartel product (Rep.CONTRABAND) is illegal in the space of
-	a power hostile to the cartel (Rep.stance(owner, Rep.CARTEL) ==
-	'hostile': the Estates and the Diwan). Ambivalent powers (Jove, Zhuhai)
-	look the other way and don't inspect for it.
+	every power that bans it (T.drugBan: the Estates, the Diwan, Zhuhai and
+	Jove). Their stations still buy and sell it (Rep.embargoed exempts it):
+	the risk is the patrols on the way in.
+	Jove's patrols fly without Deep Scanners (T.policeNoScanner), so they
+	inspect by eye. Unowned space (Neptune) has nobody to enforce anything.
 
 	Inspections happen where police already stop: a squad leader holding
 	at a stop of its sweep (src/squads.lua, squad_sweep) hails the player
@@ -26,10 +28,16 @@ function C.state(u)
  return u.contraband
 end
 
-function C.illegal(u,faction,item)
- return Rep.CONTRABAND[item] and faction and Rep.stance(faction,Rep.CARTEL,u)=='hostile' or false
+-- Does this power ban the drugs? (T.drugBan, or any other power hostile to
+-- the cartel; never the cartel itself or unowned space.)
+function C.bans(u,faction)
+ if not faction or faction==Rep.CARTEL then return false end
+ return T.drugBan[faction] or Rep.stance(faction,Rep.CARTEL,u)=='hostile' or false
 end
-function C.inspects(u,faction) return faction and Rep.stance(faction,Rep.CARTEL,u)=='hostile' or false end
+function C.illegal(u,faction,item)
+ return Rep.CONTRABAND[item] and C.bans(u,faction) or false
+end
+function C.inspects(u,faction) return C.bans(u,faction) end
 
 -- Everything in a hold by item, with what's packed in containers carried
 -- in it counted separately: open[id], packed[id]. A ship with no grid hold
@@ -158,7 +166,10 @@ function C.update(game)
    local x,y=e.body:getPosition()
    if (x-px)^2+(y-py)^2<T.inspectRange^2 then
     C.seen[r.task]=true
-    if math.random()<T.inspectChance then return C.inspect(game,e,p,faction) end
+    -- a station here burning through an outlawed drug has its police
+    -- looking harder (src/crisis.lua heat)
+    local chance=math.min(T.inspectChanceMax,T.inspectChance+T.crisisInspectBoost*require('src.crisis').heat(u,game.fieldId))
+    if math.random()<chance then return C.inspect(game,e,p,faction) end
    end
   end
  end

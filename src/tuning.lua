@@ -604,8 +604,8 @@ T.questDeadline=3600     -- time to finish once accepted
 T.questMaxVolume=60      -- m3 asked for in one ore contract
 T.questTick=60
 T.questKindMax=2         -- open offers of one kind per station
-T.questCooldown={rescue=120,ore_delivery=300} -- per station, after posting that kind
-T.questWeights={rescue=2,sat_launch=2,sat_refuel=2,ore_delivery=1} -- default order when the arbiter can choose; a location's questWeights overrides
+T.questCooldown={rescue=120,ore_delivery=300,drug_crisis=900,lounge_supply=600} -- per station, after posting that kind
+T.questWeights={rescue=2,sat_launch=2,sat_refuel=2,ore_delivery=1,drug_crisis=1,lounge_supply=1} -- default order when the arbiter can choose; a location's questWeights overrides
 T.questStanding=2        -- giver faction standing for a finished job
 T.questFailStanding=1    -- and lost for a failed or abandoned one
 T.rescueMinAge=60        -- stranded this long before a station posts the rescue
@@ -748,6 +748,7 @@ T.courierBanRep=-40
 -- Contraband inspections (src/contraband.lua, src/dialogs/inspection.lua)
 T.inspectRange = 1400        -- px: a holding squad leader hails ships this close
 T.inspectChance = 0.6        -- chance a holding squad bothers with you
+T.inspectChanceMax = 0.95    -- ceiling once a drug crisis adds its heat (src/crisis.lua)
 T.inspectWindow = 25         -- s to answer a hail before it counts as running
 T.inspectScanTime = 6        -- s a scan takes; you have to stay in range
 T.inspectLeash = 2200        -- px: leave this far from the patrol mid-inspection and you're running
@@ -758,6 +759,50 @@ T.inspectStanding = 8        -- standing lost when caught
 T.inspectRunStanding = 15    -- standing lost for running
 T.wantedTime = 300           -- s that power's police shoot on sight after you run
 T.bribeMin, T.bribeShare, T.bribeStanding = 250, 0.4, 5
-T.bribeChance = { estates = 0.2, diwan = 0.35 }   -- by inspecting power
+T.bribeChance = { estates = 0.2, diwan = 0.35, zhuhai = 0.5, jove = 0.85 }   -- by inspecting power
+-- Powers that ban the cartel's drugs (src/contraband.lua): their police
+-- inspect for them and their markets take them only through a fence.
+-- Unowned space (Neptune) has nobody to ban anything.
+T.drugBan = { estates=true, diwan=true, zhuhai=true, jove=true }
+-- Police yards that issue no Deep Scanner: their patrols inspect by eye.
+T.policeNoScanner = { jove=true }   -- Kyrakos doesn't spend on it
+
+
+-- Station crises: drug demand that follows what a station is going through
+-- (src/crisis.lua). A use_* stim or fentanyl facility's authored capacity is
+-- its peak; moss runs at its authored rate unless wildcats are about.
+T.crisisTick=60               -- s of game clock between crisis updates
+T.crisisBaseUse=.3            -- share of the peak a calm station still uses
+T.crisisEase=3                -- intensity moves at most this much a game hour
+T.crisisHeldDecay=.5          -- a lapse in the condition takes back this much of the time it has held
+T.crisisFloor=.25             -- an active crisis is at least this intense
+T.crisisTradeCut=.35          -- stock of other goods given up at full intensity (food never)
+-- amphetamines: production pressure
+T.crisisBusyDocked=7          -- NPC ships docked (a half hour's average) before crews feel it; full at one and a half times this
+T.crisisBusyHours=.33          -- game hours that has to last before a crisis starts
+T.crisisBusyResolveHours=.25   -- and hours of quiet before it ends
+-- fentanyl: food shortage
+T.crisisFoodHours=2           -- under this many hours of food in store counts as short
+T.crisisFoodCheckHours=.33
+T.crisisFoodResolveHours=.25
+-- cannabinoid moss: steady leisure use, damped while wildcats are about
+T.crisisCalmWildcats=0        -- live wildcats the system can hold and still count as safe
+T.crisisThreatHours=.33       -- wildcats about this long before the docks go quiet
+T.crisisThreatResolveHours=.5 -- and gone this long before moss use returns
+T.crisisThreatUse=.3          -- share of its moss a threatened station still uses
+T.mossBoomHours=.5            -- hours without wildcats before the lounges start to fill
+T.mossBoomRamp=1.5            -- and hours more to a full boom
+T.mossBoomUse=1.6             -- moss use at a full boom, as a share of the authored rate
+T.mossBoomHeat=.6             -- police heat a full boom adds (patrols with no wildcats to chase)
+T.loungeMin=.5                -- boom before a station posts lounge_supply runs
+T.loungeHours=1               -- a run covers this many hours of boom use
+T.loungePremium=1.15          -- unit pay as a share of local price
+-- what a crisis does beyond the market
+T.crisisInspectBoost=.3       -- added to T.inspectChance near a station in an outlawed crisis
+T.crisisQuestMin=.4           -- intensity before a station posts a drug_crisis delivery
+T.crisisQuestHours=1          -- the delivery covers this many hours of its crisis use
+T.crisisQuestMinAmount=6
+T.crisisQuestPremium=1.3      -- unit pay as a share of local price, at the crisis floor
+T.crisisQuestUrgency=.7       -- added to the premium at full intensity
 
 return T

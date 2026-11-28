@@ -89,12 +89,17 @@ function View.drawQuest(game,f,row)
  local rescue=q.kind=='rescue'
  local site=q.title~=nil
  local ore=q.kind=='ore_delivery'
+ local crisis=q.kind=='drug_crisis' or q.kind=='lounge_supply'
  local title,reward,detail
  local aboard=game.player.cargo[q.item] or 0
  if ore then
   title=('Mine %d \195\151 %s for %s'):format(left,item(q.item),name(q.giver))
   reward=HUD.credits(q.unit*left)
   detail=('%s each · %d aboard'):format(HUD.credits(q.unit),aboard)
+ elseif crisis then
+  title=((q.kind=='lounge_supply' and 'Lounge supply' or 'Crisis supply')..': %d \195\151 %s for %s'):format(left,item(q.item),name(q.giver))
+  reward=HUD.credits(q.unit*left)
+  detail=('%s · %s each · %d aboard'):format(q.why or 'they need it now',HUD.credits(q.unit),aboard)
  elseif site then
   title=q.title;reward=HUD.credits(q.unit);detail=q.detail or ''
  elseif rescue then

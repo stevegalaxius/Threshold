@@ -992,5 +992,51 @@ return function(game)
   assert(has and Stock.count(u,key,'scanner')==before and Stock.count(u,key,'tug_beam')>=1,'scanner swap did not go through the yard shelf')
   print('ok  police gear: yards import their modules and issue scanners from stock')
  end
+ -- Drug crises (src/crisis.lua): a hungry station takes fentanyl at its
+ -- peak, posts a crisis delivery, and settles back once fed; a wildcat in
+ -- its system turns its moss demand off; police there look harder.
+ do
+  local g=fresh();local u=g.universe;local T=require('src.tuning')
+  local Cr=require('src.crisis');local Q=require('src.quests');local C=require('src.commodities');local Food=require('src.food')
+  local key='station:callisto_1';local fent=C.byId.use_fentanyl
+  assert(Cr.consumers()[key],'Valhalla Port takes no crisis drugs')
+  local calm=Cr.useScale(u,key,fent)
+  assert(math.abs(calm-T.crisisBaseUse)<1e-9,'a calm station uses more than its base share')
+  local calmTarget=require('src.economy').target(u,key,'fentanyl')
+  local clock=u.clock or 0
+  for _=1,math.ceil(T.crisisFoodCheckHours*12)+24 do clock=clock+300;Cr.step(u,key,'food_shortage',1,300,clock) end
+  local e=Cr.get(u,key,'fentanyl')
+  assert(e.active and e.intensity>.9,'a food shortage started no fentanyl crisis')
+  assert(Cr.useScale(u,key,fent)>.95,'the crisis did not run fentanyl use to its peak')
+  assert(require('src.economy').target(u,key,'fentanyl')>calmTarget,'the crisis did not raise the fentanyl target')
+  assert(Cr.tradeScale(u,key,'steel_plate')<1 and Cr.tradeScale(u,key,Food.item)==1,'trade cut wrong (food must be spared)')
+  local ctx={taken={},stations={key},perStation={},perKind={}}
+  local offer=Q.generators.drug_crisis.propose(u,key,clock,ctx)[1]
+  assert(offer and offer.item=='fentanyl' and offer.amount>0 and offer.unit>require('src.markets').price(u,key,'fentanyl'),'no crisis delivery posted')
+  for _=1,math.ceil(T.crisisFoodResolveHours*12)+30 do clock=clock+300;Cr.step(u,key,'food_shortage',0,300,clock) end
+  assert(not e.active and e.intensity==0,'the fentanyl crisis never ended')
+  assert(not Q.generators.drug_crisis.keep(u,{giver=key,item='fentanyl'}),'a crisis delivery outlived its crisis')
+  -- moss is steady leisure use, damped while wildcats are in the system
+  local moss=C.byId.use_moss
+  assert(Cr.useScale(u,key,moss)==1,'calm moss use is not its authored rate')
+  -- safe skies build a boom: more moss, a lounge run, police with time on their hands
+  for _=1,math.ceil((T.mossBoomHours+T.mossBoomRamp)*12)+2 do clock=clock+300;Cr.step(u,key,'wildcat_threat',0,300,clock) end
+  assert(math.abs(Cr.useScale(u,key,moss)-T.mossBoomUse)<1e-9,'a long clear spell built no moss boom')
+  local run=Q.generators.lounge_supply.propose(u,key,clock,{taken={}})[1]
+  assert(run and run.item=='cannabinoid_moss' and run.amount>0,'a moss boom posted no lounge run')
+  assert(Cr.heat(u,L.byId[key].area)>0,'a boom in Jovian space freed no patrols')
+  local ctx2=Cr.context(u)
+  local sys=Fields.moons[L.byId[key].area] and Fields.moons[L.byId[key].area].parent or L.byId[key].area
+  ctx2.wildcats[sys]=1
+  assert(Cr.signal.wildcat_threat(u,key,ctx2)==1,'a wildcat in the system was not noticed')
+  for _=1,60 do clock=clock+300;Cr.step(u,key,'wildcat_threat',1,300,clock) end
+  assert(math.abs(Cr.useScale(u,key,moss)-T.crisisThreatUse)<1e-9,'wildcats did not damp moss use')
+  assert(Cr.intensity(u,key)==0 and #Q.generators.drug_crisis.propose(u,key,clock,{taken={}})==0 and not Q.generators.lounge_supply.keep(u,{giver=key}),'damped moss counted as a crisis or kept its boom')
+  -- Elysium (Earth) is an Estates fence: a fentanyl crisis there heats up Earth's police
+  for _=1,200 do clock=clock+300;Cr.step(u,'station:earth_2','food_shortage',1,300,clock) end
+  assert(Cr.heat(u,L.byId['station:earth_2'].area)>0,'an outlawed crisis added no police heat')
+  assert(Cr.heat(u,L.byId['station:triton_1'].area)==0 or not require('src.contraband').inspects(u,require('src.reputation').ofNode('station:triton_1')),'Neptune has nobody to enforce a ban')
+  print('ok  drug crises: food shortage drives fentanyl, delivery offered, settles; wildcats damp moss; police heat')
+ end
  print('ALL TESTS PASSED')
 end
