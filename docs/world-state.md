@@ -72,7 +72,7 @@ Chairman of the Heaven-Ladder conglomerate. Seat `station:mars_3`, rides to `sta
 
 ### Councillor Teodor Vey (leader)
 
-Presiding Councillor of the Accord. Seat `station:jupiter_2`, travels only to summits. Flag `notable.jove_leader`. Player deed -50 standing.
+Presiding Councillor of the Accord. Seat `station:jupiter_1`, travels only to summits. Flag `notable.jove_leader`. Player deed -50 standing.
 
 - price x1.05 at faction:jove
 - deuterium_canister +40% at faction:jove, fading over 6h
@@ -83,14 +83,14 @@ Presiding Councillor of the Accord. Seat `station:jupiter_2`, travels only to su
 
 ### Marisol Achterberg (journalist)
 
-Editor of the Jovian Ledger. Seat `station:callisto_1`, rides to `station:jupiter_2`. Flag `notable.jove_journalist`. Player deed -30 standing.
+Editor of the Jovian Ledger. Seat `station:callisto_1`, rides to `station:jupiter_1`. Flag `notable.jove_journalist`. Player deed -30 standing.
 
 - outlet_reach x0.35 at ledger
 - beltway takes over ledger's beat
 
 ### Hesper Okonkwo (magnate)
 
-Skimmer baron of Olympus. Seat `station:jupiter_1`, rides to `station:jupiter_2`. Flag `notable.jove_magnate`. Player deed -40 standing.
+Skimmer baron of Olympus. Seat `station:jupiter_1`, rides to `station:jupiter_3`. Flag `notable.jove_magnate`. Player deed -40 standing.
 
 - output x0.40 at station:jupiter_1 (skim_deuterium)
 - deuterium_canister +60% at station:jupiter_1, fading over 6h
