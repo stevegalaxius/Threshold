@@ -128,7 +128,16 @@ function O.draw(game,toScreen,font)
     if not (g.nodes[from] and g.nodes[to]) then break end
     local edge={from=from,to=to}
     local start=0
-    if i==first and r.state=='travel' and e then start=math.max(0,math.min(1,Graph.project(g,edge,n.x,n.y,clock)))
+    if i==first and r.state=='travel' and e then
+     -- the nearest point of the drawn leg to the ship. Graph.project goes by
+     -- radius on a gate's or driver's leg, and a ship swinging wide of that
+     -- line came out at 0: the line jumped back to the gate it had left and
+     -- redrew the whole leg behind it
+     local bd
+     for k=0,32 do
+      local x,y=Graph.point(g,edge,k/32,clock);local d=(x-n.x)^2+(y-n.y)^2
+      if not bd or d<bd then bd,start=d,k/32 end
+     end
     elseif i==first and r.state=='travel' then start=math.max(0,math.min(1,(clock-(r.depart or clock))/math.max(.01,(r.arrive or clock)-(r.depart or clock)))) end
     for k=1,16 do
      local x,y=toScreen(game,Graph.point(g,edge,start+(1-start)*k/16,clock));pts[#pts+1]=x;pts[#pts+1]=y
