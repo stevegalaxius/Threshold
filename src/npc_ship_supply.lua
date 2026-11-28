@@ -255,6 +255,7 @@ end
 -- and inspect by eye (src/contraband.lua).
 function S.issueGear(u,key,ship,policy)
  if (policy and policy.role)~='patrol' then return end
+ if key and require('src.tuning').policeNoScanner[require('src.reputation').ofNode(key)] then return end
  local hull=data.hulls[ship.hull];if not hull then return end
  local Stock=require('src.stockpile')
  for _,id in ipairs(ship.loadout) do if id=='scanner' then return end end

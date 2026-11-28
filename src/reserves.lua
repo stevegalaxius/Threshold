@@ -19,6 +19,7 @@ end
 local function yardStock(key,item)
  local n=(require('data.industry').serviceYardStock or {})[item];if not n then return 0 end
  local def=require('src.dealers').def(key)
+ if item=='scanner' and require('src.tuning').policeNoScanner[require('src.reputation').ofNode(key)] then return 0 end
  return def and def.service and #def.hulls>0 and n or 0
 end
 local base

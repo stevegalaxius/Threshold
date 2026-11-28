@@ -59,7 +59,7 @@ return function(game)
  local u=game.universe
  u.credits=10000
  local Con=require('src.contraband')
- assert(Con.inspects(u,'estates') and Con.inspects(u,'jove') and Con.law(u,'jove').inspect<Con.law(u,'zhuhai').inspect and not Con.inspects(u,nil),'who inspects')
+ assert(Con.inspects(u,'estates') and Con.inspects(u,'jove') and Con.inspects(u,'zhuhai') and not Con.inspects(u,nil),'who inspects')
  local police=ship('Patrol')
  local before=Rep.standing(u,'estates')
  math.random=function() return 0 end

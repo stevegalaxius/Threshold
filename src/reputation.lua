@@ -109,7 +109,8 @@ function Rep.embargoed(s, c, item)
 	local function hostile(f) return Rep.stance(f, Rep.CARTEL) == "hostile" end
 	if fs == Rep.CARTEL and hostile(fc) then return true end
 	if fc == Rep.CARTEL and hostile(fs) then return true end
-	if item and Rep.CONTRABAND[item] and hostile(fc) then return true end
+	-- the drugs: only through a fence where they're banned (src/contraband.lua)
+	if item and Rep.CONTRABAND[item] and require('src.contraband').bans(nil, fc) then return true end
 	return false
 end
 

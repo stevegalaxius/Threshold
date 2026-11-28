@@ -67,7 +67,7 @@ W.stations = {
 		-- the two orbital stations are shipyards, and freight meets here
 		{ id = "station:mars_4", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:mars_4", name = "Zhuhai Logistics", layout = "customs_1", hub = true },
 		-- residential: Zhuhai's workforce lives here, not on the shipyards
-		{ id = "station:mars_5", facilities={use_amphetamines={capacity=-24},use_moss={capacity=-6}}, marketId = "market:mars_5", services = { "market", "hangar" }, spin = -0.03, phase = 1.0, name = "Hakka Tulou Habitat", layout = "zhuhai_tulou",
+		{ id = "station:mars_5", uses = { fence = true }, facilities={use_amphetamines={capacity=-24},use_moss={capacity=-6}}, marketId = "market:mars_5", services = { "market", "hangar" }, spin = -0.03, phase = 1.0, name = "Hakka Tulou Habitat", layout = "zhuhai_tulou",
 		  residential = { population = 4000, homes = 10, routes = {
 			{ to = "station:mars_3", kind = "work", weight = 4 },
 			{ to = "station:mars_1", kind = "work", weight = 3 },
@@ -119,7 +119,7 @@ W.stations = {
 		  } },
 	},
 	callisto = {
-		{ id = "station:callisto_1", food = {use=64}, facilities={farm={capacity=640},use_fentanyl={capacity=-18},use_amphetamines={capacity=-4},use_moss={capacity=-8}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:callisto_1", name = "Valhalla Port", layout = "jovian_freeport" },
+		{ id = "station:callisto_1", uses = { fence = true }, food = {use=64}, facilities={farm={capacity=640},use_fentanyl={capacity=-18},use_amphetamines={capacity=-4},use_moss={capacity=-8}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:callisto_1", name = "Valhalla Port", layout = "jovian_freeport" },
 		{ id = "station:callisto_2", facilities={chemicals_fertilizer={type='chemicals',name='Fertilizer plant',recipes={'make_fertilizer'},capacity=160},chemicals_explosives={type='chemicals',name='Explosives plant',recipes={'make_explosives'},capacity=160}}, services = { "market", "hangar", "repair" }, marketId = "market:callisto_2", spin = -0.05, phase = 2.3415926535897933, name = "Asgard Station", layout = "jovian_works" },
 		{ id = "station:callisto_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:callisto_3", name = "Callisto Customs", layout = "customs_1", customs = true },
 	},

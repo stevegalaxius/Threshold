@@ -760,15 +760,13 @@ T.inspectRunStanding = 15    -- standing lost for running
 T.wantedTime = 300           -- s that power's police shoot on sight after you run
 T.bribeMin, T.bribeShare, T.bribeStanding = 250, 0.4, 5
 T.bribeChance = { estates = 0.2, diwan = 0.35, zhuhai = 0.5, jove = 0.85 }   -- by inspecting power
--- How hard each power enforces the drug ban: inspect scales the chance a
--- patrol stops you, detect what it finds. full: any other power hostile to the cartel.
-T.contrabandLaw = {
- full   = {inspect=1,   detect=1},
- estates= {inspect=1,   detect=1},
- diwan  = {inspect=1,   detect=1},
- zhuhai = {inspect=.6,  detect=.9},
- jove   = {inspect=.2,  detect=.5},   -- Kyrakos looks the other way, mostly
-}
+-- Powers that ban the cartel's drugs (src/contraband.lua): their police
+-- inspect for them and their markets take them only through a fence.
+-- Unowned space (Neptune) has nobody to ban anything.
+T.drugBan = { estates=true, diwan=true, zhuhai=true, jove=true }
+-- Police yards that issue no Deep Scanner: their patrols inspect by eye.
+T.policeNoScanner = { jove=true }   -- Kyrakos doesn't spend on it
+
 
 -- Station crises: drug demand that follows what a station is going through
 -- (src/crisis.lua). A use_* stim or fentanyl facility's authored capacity is

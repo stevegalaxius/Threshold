@@ -1,9 +1,9 @@
 --[[
-	Contraband: cartel product (Rep.CONTRABAND) is illegal in every power's
-	space, but powers enforce it unevenly (T.contrabandLaw): the Estates and
-	the Diwan, hostile to the cartel, in full; Zhuhai less often; Jove
-	rarely, half-heartedly, and for a bribe. Unowned space (Neptune) has
-	nobody to enforce anything.
+	Contraband: cartel product (Rep.CONTRABAND) is illegal in the space of
+	every power that bans it (T.drugBan: the Estates, the Diwan, Zhuhai and
+	Jove), and their markets take it only through a fence (Rep.embargoed).
+	Jove's patrols fly without Deep Scanners (T.policeNoScanner), so they
+	inspect by eye. Unowned space (Neptune) has nobody to enforce anything.
 
 	Inspections happen where police already stop: a squad leader holding
 	at a stop of its sweep (src/squads.lua, squad_sweep) hails the player
@@ -27,20 +27,16 @@ function C.state(u)
  return u.contraband
 end
 
--- How hard a power enforces its ban (T.contrabandLaw): { inspect, detect },
--- each a share of the full rate. A power hostile to the cartel enforces in
--- full whether listed or not; an unowned place (Neptune) has no law at all.
-local none={inspect=0,detect=0}
-function C.law(u,faction)
- if not faction or faction==Rep.CARTEL then return none end
- local law=T.contrabandLaw[faction]
- if law then return law end
- return Rep.stance(faction,Rep.CARTEL,u)=='hostile' and T.contrabandLaw.full or none
+-- Does this power ban the drugs? (T.drugBan, or any other power hostile to
+-- the cartel; never the cartel itself or unowned space.)
+function C.bans(u,faction)
+ if not faction or faction==Rep.CARTEL then return false end
+ return T.drugBan[faction] or Rep.stance(faction,Rep.CARTEL,u)=='hostile' or false
 end
 function C.illegal(u,faction,item)
- return Rep.CONTRABAND[item] and C.law(u,faction).inspect>0 or false
+ return Rep.CONTRABAND[item] and C.bans(u,faction) or false
 end
-function C.inspects(u,faction) return C.law(u,faction).inspect>0 end
+function C.inspects(u,faction) return C.bans(u,faction) end
 
 -- Everything in a hold by item, with what's packed in containers carried
 -- in it counted separately: open[id], packed[id]. A ship with no grid hold
@@ -171,8 +167,7 @@ function C.update(game)
     C.seen[r.task]=true
     -- a station here burning through an outlawed drug has its police
     -- looking harder (src/crisis.lua heat)
-    local law=C.law(u,faction)
-    local chance=math.min(T.inspectChanceMax,(T.inspectChance+T.crisisInspectBoost*require('src.crisis').heat(u,game.fieldId))*law.inspect)
+    local chance=math.min(T.inspectChanceMax,T.inspectChance+T.crisisInspectBoost*require('src.crisis').heat(u,game.fieldId))
     if math.random()<chance then return C.inspect(game,e,p,faction) end
    end
   end
@@ -253,7 +248,6 @@ end
 function C.inspect(game,police,ship,faction)
  local u=game.universe
  local how=C.method(game,police)
- how.detect=how.detect*C.law(u,faction).detect
  local list,n,value=C.manifest(u,faction,ship,how.deep)
  return require('src.comms').open(game,'inspection',police,ship,{
   faction=faction,list=list,units=n,value=value,deep=how.deep,scanTime=how.time,detect=how.detect,scanner=how.scanner,
