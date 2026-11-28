@@ -197,9 +197,16 @@ function Comms.open(game,scriptId,speaker,listener,vars)
  local ch=attach(game,scriptId,speaker,listener,vars)
  Comms.go(ch,ch.script.start)
  if not ch.closed and listener.isPlayer then
+  -- regular ship hail
   require('src.notify').post(game.universe,{kind='comms',title='Incoming hail: '..Comms.factionName(game,speaker)..' '..Comms.nameOf(speaker),
    text='Press C to answer',key='comms:'..ch.id})
   if Comms.onHail then Comms.onHail(game,ch) end
+  -- broadcast satellite: separate notification so the UI can distinguish
+  if speaker._satRecord and Comms.onBroadcast then
+   require('src.notify').post(game.universe,{kind='comms',title='Broadcast from '..(speaker.name or 'satellite'),
+    text='Press C to listen',key='comms:'..ch.id})
+   Comms.onBroadcast(game, ch)
+  end
  end
  return ch
 end
