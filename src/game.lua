@@ -2407,6 +2407,7 @@ function Game:step(dt, sample)
 	-- ship-to-ship conversations, and police inspections that open them
 	require("src.comms").update(self)
 	require("src.contraband").update(self)
+	require("src.ship_scan").update(self)   -- Deep Scanner: ships in range
 	self:applyBoundary()
 	self:applyCurrent(dt)
 	require("src.satellites").keep(self, dt)
