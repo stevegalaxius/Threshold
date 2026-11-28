@@ -31,9 +31,13 @@
 -- and the like: add hubs = n wherever one should be.)
 local hubs = { neptune = 2, pluto = 1 }
 local common = { passive = 1 }
+-- Broadcast satellites: a handful on inner worlds and busy moons;
+-- they send propaganda, market tips, and crisis warnings to passing ships.
+local broadcasts = { earth = 1, mars = 1, luna = 1, europa = 1, ganymede = 1 }
 for _, f in ipairs({ "mercury", "venus", "earth", "mars", "jupiter", "saturn", "uranus", "neptune" }) do
-	satellites { field = f, count = { 12, 20 }, mix = common, hubs = hubs[f] }
+	satellites { field = f, count = { 12, 20 }, mix = { passive = 1, broadcast = 2 }, hubs = hubs[f] }
 end
 for _, f in ipairs({ "luna", "io", "europa", "ganymede", "callisto", "titan", "enceladus", "titania", "triton", "pluto" }) do
-	satellites { field = f, count = { 4, 8 }, mix = { passive = 1 }, hubs = hubs[f] }
+	local extra = broadcasts[f] or 0
+	satellites { field = f, count = { 4, 8 }, mix = { passive = 1, broadcast = 2 }, hubs = hubs[f], broadcast = extra }
 end
