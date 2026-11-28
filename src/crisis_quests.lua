@@ -5,6 +5,11 @@
 	units, handed over at the station (Q.deliver), paid per unit at a
 	premium over the local price that grows with the crisis's intensity.
 
+	Lounge supply is moss's own: while a station's moss boom (safe skies)
+	is at T.loungeMin or more it posts a run at a smaller premium,
+	T.loungePremium, and posts the next one after its cooldown for as long
+	as the boom lasts. It's withdrawn when wildcats end the boom.
+
 	Only while the crisis is at T.crisisQuestMin or worse, and only where
 	the station can legally take the drug or is a fence (Rep.embargoed).
 	At a fence in a power that outlaws the drug (Elysium (Earth), say),
@@ -62,5 +67,29 @@ Q.generators.drug_crisis={
   end
   table.sort(out,function(a,b) return a.item<b.item end)
   return out
+ end,
+}
+
+Q.order[#Q.order+1]='lounge_supply'
+Q.deliveries.lounge_supply=true
+local function boom(u,st)
+ for _,c in ipairs(Cr.consumers()[st] or {}) do
+  if Cr.AXES[c.crisis].damper then local e=Cr.get(u,st,c.item);return e and e.boom or 0,c end
+ end
+ return 0
+end
+Q.generators.lounge_supply={
+ label='Lounge supply',
+ keep=function(u,q) return boom(u,q.giver)>0 end,
+ propose=function(u,st,clock,ctx)
+  local b,c=boom(u,st)
+  if b<T.loungeMin or not c or ctx.taken[st..'|'..c.item] then return {} end
+  if require('src.reputation').embargoed(st,st,c.item) then return {} end
+  local Rep=require('src.reputation')
+  local need=math.max(T.crisisQuestMinAmount,math.ceil(peak(st,c.item)*Cr.useScale(u,st,c)*T.loungeHours))
+  local cap=math.max(1,math.floor(T.questMaxVolume/math.max(.001,data.items[c.item].volume)))
+  return {{kind='lounge_supply',giver=st,item=c.item,amount=math.floor(math.min(need,cap)),
+   unit=math.max(1,math.floor(require('src.markets').price(u,st,c.item)*T.loungePremium+.5)),
+   why='safe skies, full lounges',quiet=require('src.contraband').illegal(u,Rep.ofNode(st),c.item) or nil}}
  end,
 }

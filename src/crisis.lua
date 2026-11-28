@@ -13,11 +13,15 @@
 	                    Crews pushing extra shifts.
 	  fentanyl          food shortage: its food output down (src/food.lua),
 	                    or its crates under T.crisisFoodHours of eating.
-	  cannabinoid_moss  not a crisis: the leisure drug runs at its authored
-	                    rate, and drops to T.crisisThreatUse of it while
-	                    wildcats (src/wildcats.lua) are about in its system,
-	                    so clearing a system's sites brings it back. No
-	                    news, jobs, trade cut or police heat for it.
+	  cannabinoid_moss  not a crisis but its opposite, a boom: the leisure
+	                    drug runs at its authored rate, climbs toward
+	                    T.mossBoomUse the longer its system has gone without
+	                    wildcats (src/wildcats.lua), and drops to
+	                    T.crisisThreatUse while they're about. A boom posts
+	                    lounge_supply runs (smaller premium, recurring),
+	                    makes the news, and frees the system's patrols to
+	                    sweep for smugglers (Cr.heat). It cuts no trade:
+	                    nothing it does feeds back into wildcats or docking.
 
 	A condition has to hold for the drug's check hours before a crisis
 	starts, and has to stay gone for its resolve hours before it ends.
@@ -139,15 +143,17 @@ local function placeName(key) return (L.byId[key] or {}).name or key end
 local HEADLINES={
  production_pressure={start='Double shifts at %s: stim sales climb',stop='%s eases off the double shifts'},
  food_shortage={start='Short of food, crews at %s turn to fentanyl',stop='Food is back on the tables at %s'},
+ boom={start='Safe skies, full lounges: moss flows at %s',stop='Wildcats about: the moss lounges at %s empty out'},
 }
 local function news(u,key,axis,what)
  local N=require('src.news');local Outlets=require('data.outlets')
  local place=L.byId[key];if not place then return end
  local text=HEADLINES[axis][what]
+ local drug=axis=='boom' and 'cannabinoid_moss' or Cr.AXES[axis].drug
  local where=placeName(key)
  for _,o in ipairs(Outlets.order) do
   if N.covers(u,o,place.area) then
-   N.publish(u,{outlet=o,kind='crisis',area=place.area,station=key,good=Cr.AXES[axis].drug,headline=text:format(where),fact='crisis:'..key..':'..axis..':'..what})
+   N.publish(u,{outlet=o,kind='crisis',area=place.area,station=key,good=drug,headline=text:format(where),fact='crisis:'..key..':'..axis..':'..what})
   end
  end
 end
@@ -160,6 +166,13 @@ function Cr.step(u,key,axis,s,dt,clock)
  e.signal=s
  if s>0 then e.held=e.held+hours;e.calm=0
  else e.calm=e.calm+hours;e.held=math.max(0,e.held-hours*T.crisisHeldDecay) end
+ if def.damper then
+  -- safe skies: hours without wildcats build a boom, and they end it
+  e.clear=s>0 and 0 or (e.clear or 0)+hours
+  local was=e.boom or 0
+  e.boom=s>0 and math.max(0,was-T.crisisEase*hours) or math.min(1,math.max(0,(e.clear-T.mossBoomHours)/T.mossBoomRamp))
+  if was<.5 and e.boom>=.5 then news(u,key,'boom','start') elseif was>0 and e.boom==0 and s>0 then news(u,key,'boom','stop') end
+ end
  if not e.active and e.held>=T[def.check] then
   e.active=true;e.since=clock;e.axis=axis
   if not def.damper then news(u,key,axis,'start') end
@@ -197,7 +210,10 @@ function Cr.useScale(u,key,c)
  if not c.crisis then return 1 end
  local e=u and Cr.get(u,key,c.item)
  local i=e and e.intensity or 0
- if Cr.AXES[c.crisis].damper then return 1-(1-T.crisisThreatUse)*i end
+ if Cr.AXES[c.crisis].damper then
+  if i>0 then return 1-(1-T.crisisThreatUse)*i end
+  return 1+(T.mossBoomUse-1)*(e and e.boom or 0)
+ end
  return T.crisisBaseUse+(1-T.crisisBaseUse)*i
 end
 -- The worst crisis at a station right now (0 when none).
@@ -229,7 +245,11 @@ function Cr.heat(u,area)
  for _,key in ipairs(L.stations(area,'trade')) do
   local r=u.stations and u.stations[key]
   for drug,e in pairs(r and r.crisis or {}) do
-   if e.active and crisis(e) and require('src.contraband').illegal(u,Rep.ofNode(key),drug) then best=math.max(best,e.intensity or 0) end
+   if require('src.contraband').illegal(u,Rep.ofNode(key),drug) then
+    if e.active and crisis(e) then best=math.max(best,e.intensity or 0) end
+    -- a moss boom: no wildcats to chase, so the patrols look at you
+    if (e.boom or 0)>0 then best=math.max(best,e.boom*T.mossBoomHeat) end
+   end
   end
  end
  return best

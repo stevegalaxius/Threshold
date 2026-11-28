@@ -1019,17 +1019,23 @@ return function(game)
   -- moss is steady leisure use, damped while wildcats are in the system
   local moss=C.byId.use_moss
   assert(Cr.useScale(u,key,moss)==1,'calm moss use is not its authored rate')
+  -- safe skies build a boom: more moss, a lounge run, police with time on their hands
+  for _=1,math.ceil((T.mossBoomHours+T.mossBoomRamp)*12)+2 do clock=clock+300;Cr.step(u,key,'wildcat_threat',0,300,clock) end
+  assert(math.abs(Cr.useScale(u,key,moss)-T.mossBoomUse)<1e-9,'a long clear spell built no moss boom')
+  local run=Q.generators.lounge_supply.propose(u,key,clock,{taken={}})[1]
+  assert(run and run.item=='cannabinoid_moss' and run.amount>0,'a moss boom posted no lounge run')
+  assert(Cr.heat(u,L.byId[key].area)>0,'a boom in Jovian space freed no patrols')
   local ctx2=Cr.context(u)
   local sys=Fields.moons[L.byId[key].area] and Fields.moons[L.byId[key].area].parent or L.byId[key].area
   ctx2.wildcats[sys]=1
   assert(Cr.signal.wildcat_threat(u,key,ctx2)==1,'a wildcat in the system was not noticed')
   for _=1,60 do clock=clock+300;Cr.step(u,key,'wildcat_threat',1,300,clock) end
   assert(math.abs(Cr.useScale(u,key,moss)-T.crisisThreatUse)<1e-9,'wildcats did not damp moss use')
-  assert(Cr.intensity(u,key)==0 and #Q.generators.drug_crisis.propose(u,key,clock,{taken={}})==0,'damped moss counted as a crisis')
+  assert(Cr.intensity(u,key)==0 and #Q.generators.drug_crisis.propose(u,key,clock,{taken={}})==0 and not Q.generators.lounge_supply.keep(u,{giver=key}),'damped moss counted as a crisis or kept its boom')
   -- Elysium (Earth) is an Estates fence: a fentanyl crisis there heats up Earth's police
   for _=1,200 do clock=clock+300;Cr.step(u,'station:earth_2','food_shortage',1,300,clock) end
   assert(Cr.heat(u,L.byId['station:earth_2'].area)>0,'an outlawed crisis added no police heat')
-  assert(Cr.heat(u,L.byId[key].area)==0,'Jovian space has no ban to enforce')
+  assert(Cr.heat(u,L.byId['station:triton_1'].area)==0 or not require('src.contraband').inspects(u,require('src.reputation').ofNode('station:triton_1')),'Neptune has nobody to enforce a ban')
   print('ok  drug crises: food shortage drives fentanyl, delivery offered, settles; wildcats damp moss; police heat')
  end
  print('ALL TESTS PASSED')
