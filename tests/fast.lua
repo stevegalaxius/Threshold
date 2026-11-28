@@ -992,5 +992,41 @@ return function(game)
   assert(has and Stock.count(u,key,'scanner')==before and Stock.count(u,key,'tug_beam')>=1,'scanner swap did not go through the yard shelf')
   print('ok  police gear: yards import their modules and issue scanners from stock')
  end
+ -- Drug crises (src/crisis.lua): a hungry station takes fentanyl at its
+ -- peak, posts a crisis delivery, and settles back once fed; a wildcat in
+ -- its system turns its moss demand off; police there look harder.
+ do
+  local g=fresh();local u=g.universe;local T=require('src.tuning')
+  local Cr=require('src.crisis');local Q=require('src.quests');local C=require('src.commodities');local Food=require('src.food')
+  local key='station:callisto_1';local fent=C.byId.use_fentanyl
+  assert(Cr.consumers()[key],'Valhalla Port takes no crisis drugs')
+  local calm=Cr.useScale(u,key,fent)
+  assert(math.abs(calm-T.crisisBaseUse)<1e-9,'a calm station uses more than its base share')
+  local calmTarget=require('src.economy').target(u,key,'fentanyl')
+  local clock=u.clock or 0
+  for _=1,math.ceil(T.crisisFoodCheckHours*12)+24 do clock=clock+300;Cr.step(u,key,'food_shortage',1,300,clock) end
+  local e=Cr.get(u,key,'fentanyl')
+  assert(e.active and e.intensity>.9,'a food shortage started no fentanyl crisis')
+  assert(Cr.useScale(u,key,fent)>.95,'the crisis did not run fentanyl use to its peak')
+  assert(require('src.economy').target(u,key,'fentanyl')>calmTarget,'the crisis did not raise the fentanyl target')
+  assert(Cr.tradeScale(u,key,'steel_plate')<1 and Cr.tradeScale(u,key,Food.item)==1,'trade cut wrong (food must be spared)')
+  local ctx={taken={},stations={key},perStation={},perKind={}}
+  local offer=Q.generators.drug_crisis.propose(u,key,clock,ctx)[1]
+  assert(offer and offer.item=='fentanyl' and offer.amount>0 and offer.unit>require('src.markets').price(u,key,'fentanyl'),'no crisis delivery posted')
+  for _=1,math.ceil(T.crisisFoodResolveHours*12)+30 do clock=clock+300;Cr.step(u,key,'food_shortage',0,300,clock) end
+  assert(not e.active and e.intensity==0,'the fentanyl crisis never ended')
+  assert(not Q.generators.drug_crisis.keep(u,{giver=key,item='fentanyl'}),'a crisis delivery outlived its crisis')
+  -- a live wildcat of a site in Jupiter's system: no safe skies at Callisto
+  local ctx2=Cr.context(u)
+  local sys=Fields.moons[L.byId[key].area] and Fields.moons[L.byId[key].area].parent or L.byId[key].area
+  assert(Cr.signal.low_threat(u,key,ctx2)==(((ctx2.wildcats[sys] or 0)<=T.crisisCalmWildcats) and 1 or 0))
+  ctx2.wildcats[sys]=1
+  assert(Cr.signal.low_threat(u,key,ctx2)==0,'a wildcat in the system still reads as safe skies')
+  -- Elysium (Earth) is an Estates fence: a moss crisis there heats up Earth's police
+  for _=1,200 do clock=clock+300;Cr.step(u,'station:earth_2','low_threat',1,300,clock) end
+  assert(Cr.heat(u,L.byId['station:earth_2'].area)>0,'an outlawed crisis added no police heat')
+  assert(Cr.heat(u,L.byId[key].area)==0,'Jovian space has no ban to enforce')
+  print('ok  drug crises: food shortage drives fentanyl, delivery offered, settles; wildcats and police heat')
+ end
  print('ALL TESTS PASSED')
 end

@@ -43,6 +43,7 @@ local C=require('src.commodities')
 local Food=require('src.food')
 local T=require('src.tuning')
 local Dark=require('src.dark')
+local Crisis=require('src.crisis')
 local E={scaleMin=.25,scaleMax=4,scaleStep=.05,tick=60,lot=120,hours=2,halfLife=4*3600,expire=1200,reserveHours=1,scope='economy'}
 local useLocalReserve={
  fertilizer=true,explosives=true,medical_supplies=true,water=true,[Food.item]=true,
@@ -245,7 +246,7 @@ local function preparePlans(u,stations,pause)
 end
 local function capacityUse(u,key,item)
  local n=item==Food.item and Food.rates(key) or 0
- for _,c in ipairs(C.byItem(item)) do n=n+(c.use[key] or 0) end
+ for _,c in ipairs(C.byItem(item)) do n=n+(c.use[key] or 0)*Crisis.useScale(u,key,c) end
  return n+(inputPlan(u,key).rates[item] or 0)
 end
 local function serviceUse(u,key,item)
@@ -299,7 +300,9 @@ end
 target=function(u,key,item,supplier)
  local use=serviceUse(u,key,item)
  if item==Food.item then use=math.max(use,(Food.rates(key))) end
- for _,c in ipairs(C.byItem(item)) do use=math.max(use,c.use[key] or 0) end
+ for _,c in ipairs(C.byItem(item)) do use=math.max(use,(c.use[key] or 0)*Crisis.useScale(u,key,c)) end
+ -- a station in crisis keeps less of everything else (src/crisis.lua)
+ use=use*Crisis.tradeScale(u,key,item)
  -- Keep a pickup-and-transit buffer for inputs whose use depends on
  -- currently allocated production. The buffer cannot shrink to zero
  -- just because the last batch was blocked by a shortage.

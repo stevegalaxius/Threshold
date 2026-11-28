@@ -41,14 +41,15 @@ local D={recipes={
  {id='pump_alkalines',group='resources',item='alkalines',opening=0,cap=192},
  -- The cartel chain (Milliways). Cinder Works' lab makes amphetamines and
  -- fentanyl analogues from bought medical supplies; Antichthon grows moss
- -- when it pays. Jove and Zhuhai buy the product openly; the Estates and
+ -- when it pays. The use_* drug recipes run at their station's authored
+ -- capacity only at the height of a crisis (src/crisis.lua). Jove and Zhuhai buy the product openly; the Estates and
  -- the Diwan only through fences (src/reputation.lua Rep.embargoed).
  {id='make_amphetamines',group='drug_lab',item='amphetamines',batch=8,cap=40,inputs={{item='nitrates',n=1},{item='alkalines',n=1},{item='medical_supplies',n=1}}},
  {id='make_fentanyl',group='drug_lab',item='fentanyl',batch=8,cap=40,inputs={{item='industrial_acids',n=1},{item='heavy_metals',n=1},{item='medical_supplies',n=1}}},
  {id='grow_moss',group='moss_beds',item='cannabinoid_moss',batch=4,cap=40,inputs={{item='fertilizer',n=1},{item='water',n=1}}},
- {id='use_amphetamines',market=false,item='amphetamines',cap=96},
- {id='use_fentanyl',market=false,item='fentanyl',cap=96},
- {id='use_moss',market=false,item='cannabinoid_moss',cap=96},
+ {id='use_amphetamines',market=false,item='amphetamines',cap=96,crisis='production_pressure'},
+ {id='use_fentanyl',market=false,item='fentanyl',cap=96,crisis='food_shortage'},
+ {id='use_moss',market=false,item='cannabinoid_moss',cap=96,crisis='low_threat'},
  -- using hydrogen up (the inner planets' industry)
  {id='burn_hydrogen',market=false,item='hydrogen_canister',cap=60},
 }}

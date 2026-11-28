@@ -604,8 +604,8 @@ T.questDeadline=3600     -- time to finish once accepted
 T.questMaxVolume=60      -- m3 asked for in one ore contract
 T.questTick=60
 T.questKindMax=2         -- open offers of one kind per station
-T.questCooldown={rescue=120,ore_delivery=300} -- per station, after posting that kind
-T.questWeights={rescue=2,sat_launch=2,sat_refuel=2,ore_delivery=1} -- default order when the arbiter can choose; a location's questWeights overrides
+T.questCooldown={rescue=120,ore_delivery=300,drug_crisis=900} -- per station, after posting that kind
+T.questWeights={rescue=2,sat_launch=2,sat_refuel=2,ore_delivery=1,drug_crisis=1} -- default order when the arbiter can choose; a location's questWeights overrides
 T.questStanding=2        -- giver faction standing for a finished job
 T.questFailStanding=1    -- and lost for a failed or abandoned one
 T.rescueMinAge=60        -- stranded this long before a station posts the rescue
@@ -748,6 +748,7 @@ T.courierBanRep=-40
 -- Contraband inspections (src/contraband.lua, src/dialogs/inspection.lua)
 T.inspectRange = 1400        -- px: a holding squad leader hails ships this close
 T.inspectChance = 0.6        -- chance a holding squad bothers with you
+T.inspectChanceMax = 0.95    -- ceiling once a drug crisis adds its heat (src/crisis.lua)
 T.inspectWindow = 25         -- s to answer a hail before it counts as running
 T.inspectScanTime = 6        -- s a scan takes; you have to stay in range
 T.inspectLeash = 2200        -- px: leave this far from the patrol mid-inspection and you're running
@@ -759,5 +760,33 @@ T.inspectRunStanding = 15    -- standing lost for running
 T.wantedTime = 300           -- s that power's police shoot on sight after you run
 T.bribeMin, T.bribeShare, T.bribeStanding = 250, 0.4, 5
 T.bribeChance = { estates = 0.2, diwan = 0.35 }   -- by inspecting power
+
+-- Station crises: drug demand that follows what a station is going through
+-- (src/crisis.lua). A use_* drug facility's authored capacity is its peak.
+T.crisisTick=300              -- s of game clock between crisis updates
+T.crisisBaseUse=.3            -- share of the peak a calm station still uses
+T.crisisEase=.5               -- intensity moves at most this much a game hour
+T.crisisHeldDecay=.5          -- a lapse in the condition takes back this much of the time it has held
+T.crisisFloor=.25             -- an active crisis is at least this intense
+T.crisisTradeCut=.35          -- stock of other goods given up at full intensity (food never)
+-- amphetamines: production pressure
+T.crisisBusyDocked=7          -- NPC ships docked (a half hour's average) before crews feel it; full at one and a half times this
+T.crisisBusyHours=2           -- game hours that has to last before a crisis starts
+T.crisisBusyResolveHours=3    -- and hours of quiet before it ends
+-- fentanyl: food shortage
+T.crisisFoodHours=2           -- under this many hours of food in store counts as short
+T.crisisFoodCheckHours=3
+T.crisisFoodResolveHours=2
+-- cannabinoid moss: no wildcats in the station's system
+T.crisisCalmWildcats=0        -- live wildcats the system can hold and still count as safe
+T.crisisCalmHours=8
+T.crisisCalmResolveHours=4
+-- what a crisis does beyond the market
+T.crisisInspectBoost=.3       -- added to T.inspectChance near a station in an outlawed crisis
+T.crisisQuestMin=.4           -- intensity before a station posts a drug_crisis delivery
+T.crisisQuestHours=3          -- the delivery covers this many hours of its crisis use
+T.crisisQuestMinAmount=6
+T.crisisQuestPremium=1.3      -- unit pay as a share of local price, at the crisis floor
+T.crisisQuestUrgency=.7       -- added to the premium at full intensity
 
 return T

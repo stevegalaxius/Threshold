@@ -705,7 +705,7 @@ function M.capture(game)
  for clock=start,start+hoursN*3600-1,5 do
   u.clock=clock;Mining.produce(game,clock)
   for _,r in pairs(u.npcs) do A.advance(r,clock,u,game) end
-  if clock%60==0 then Tasks.clean(u,clock);E.update(u,clock);require('src.quests').update(u,clock);require('src.arbiter').update(u,clock);require('src.population').update(game,clock) end
+  if clock%60==0 then Tasks.clean(u,clock);require('src.crisis').update(u,clock);E.update(u,clock);require('src.quests').update(u,clock);require('src.arbiter').update(u,clock);require('src.population').update(game,clock) end
  end
  E.consume,E.stat,Jobs.deliver=consume,stat,deliver
  do local used,denied=require('src.npc').searchStats(u);print(('board searches: %d made, %d turned away for want of allowance'):format(used,denied)) end

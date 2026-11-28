@@ -1373,6 +1373,7 @@ function A.install(Game)
   end
   if stage==4 then
    -- (spread over the next steps, unless everything is wanted now)
+   require('src.crisis').update(self.universe,clock)
    if force or self.sideScene then require('src.economy').update(self.universe,clock)
    else require('src.economy').spread(self.universe,clock) end
    self.universe.playerDocked=require('src.player_contracts').station(self)

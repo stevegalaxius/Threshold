@@ -113,11 +113,11 @@ local function settle(u,q,status,clock,game,text)
    rep().addGoodwill(u,(u.npcs or {})[q.subject],rep().T.goodwillRescue)
   end
   if Q.sites and Q.sites[q.kind] then local pay=require('src.accounts').pay(u,q.giver,q.unit*q.amount,'quest');u.credits=u.credits+pay;q.paid=pay end
-  rep().addStanding(u,faction,T.questStanding)
+  if not q.quiet then rep().addStanding(u,faction,T.questStanding) end
   if q.onDone then require('src.news').apply(u,q.onDone,{quest=q,game=game}) end
   require('src.events').emit('quest_completed',q)
  else
-  rep().addStanding(u,faction,-T.questFailStanding)
+  if not q.quiet then rep().addStanding(u,faction,-T.questFailStanding) end
   if q.onFailed then require('src.news').apply(u,q.onFailed,{quest=q,game=game}) end
   require('src.events').emit('quest_failed',q)
  end
@@ -310,4 +310,5 @@ package.loaded['src.quests']=Q -- (the site jobs below require this module)
 require('src.quest_sites')(Q)
 require('src.sat_quests')
 require('src.ore_quests')
+require('src.crisis_quests')
 return Q

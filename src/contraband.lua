@@ -158,7 +158,10 @@ function C.update(game)
    local x,y=e.body:getPosition()
    if (x-px)^2+(y-py)^2<T.inspectRange^2 then
     C.seen[r.task]=true
-    if math.random()<T.inspectChance then return C.inspect(game,e,p,faction) end
+    -- a station here burning through an outlawed drug has its police
+    -- looking harder (src/crisis.lua heat)
+    local chance=math.min(T.inspectChanceMax,T.inspectChance+T.crisisInspectBoost*require('src.crisis').heat(u,game.fieldId))
+    if math.random()<chance then return C.inspect(game,e,p,faction) end
    end
   end
  end

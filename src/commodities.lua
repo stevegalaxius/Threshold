@@ -34,6 +34,7 @@ function C.load()
   end
  end
  C.index=nil
+ if package.loaded['src.crisis'] then package.loaded['src.crisis'].reset() end
 end
 C.load()
 -- Indexes the economy asks for thousands of times a minute, built once per
