@@ -199,8 +199,8 @@ market { id = "market:titania_2", station = "Messina Research Station", sells = 
 	{ "nav_computer", 1 }, { "pulse_s_base", 1 }, { "guidance_computer", 1 },
 } }
 
--- Ring Station and its Quarry.
-market { id = "market:ring_1", station = "Ring Station", dealer = { name = "Ring Station Ship Sales", hulls = { "mack_mustang", "mack_burro", "mack_longhorn", "ferrous_mule" }, lots = 5, restock = 12, markup = 0.85, trims = { "stripped" } }, sells = {   -- belt crossroads
+-- Providence and its Quarry.
+market { id = "market:ring_1", station = "Providence", dealer = { name = "Providence Ship Sales", hulls = { "mack_mustang", "mack_burro", "mack_longhorn", "ferrous_mule" }, lots = 5, restock = 12, markup = 0.85, trims = { "stripped" } }, sells = {   -- belt crossroads
 	{ "iron_ore", 4 },
 	{ "rounds_s", 6 }, { "rounds_m", 4 }, { "shell_s", 3 }, { "gun_s_base", 2 },
 	{ "hold_pod_s", 2 }, { "cargo_container", 3 }, { "nav_computer", 1 },

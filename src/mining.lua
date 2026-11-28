@@ -115,7 +115,7 @@ function M.create(game,area,clock)
 end
 function M.seed(game)
  local u=game.universe;local state=M.state(u)
- -- Drop sites whose source is gone (Ring Station's rocks moved to the
+ -- Drop sites whose source is gone (Providence's rocks moved to the
  -- Quarry), or their rigs keep drawing and ejecting with nothing to mine.
  for id in pairs(state.sites) do
   if not L.byId[id] then state.sites[id]=nil end

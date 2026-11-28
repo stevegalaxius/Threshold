@@ -1,7 +1,7 @@
 # Mars industry
 
 - Heaven-Ladder (`station:mars_3`): basic industry. Presses 12,000 empty canisters/hour (two per ore), rolls 480 steel plates/hour, and makes ten hull frames/hour. The primary anchor participates in industrial freight; access anchors do not duplicate facilities.
-- Zhongke Intelligent Manufacturing (`station:mars_2`): ammunition production, sharing 24 processing units/hour (missiles and torpedoes also consume imported electronics), a coil works, and the Intaki dealership (intaki_wisp, intaki_praetor, intaki_archangel) with a two-unit `intaki_assembly` facility.
+- Zhongke Intelligent Manufacturing (`station:mars_2`): ammunition production, sharing 24 processing units/hour (missiles and torpedoes also consume imported electronics) and the Intaki dealership (intaki_wisp, intaki_praetor, intaki_archangel) with a two-unit `intaki_assembly` facility.
 - Red Furnace (`station:mars_1`): ship dealership (redfu_crane, redfu_pelican, redfu_gila) with a two-processing-unit/hour `redfu_assembly` facility. Consumes frames delivered by ordinary freight, with no local frame/plate/canister/ammunition production.
 
 Steel and frame capacity include headroom for downstream manufacturing. Existing repairs and storefronts are retained.

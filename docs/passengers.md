@@ -2,10 +2,10 @@
 
 Code: `src/passengers.lua`. Config: `residential = { population, storage, routes }` on a station in `src/world_layout.lua`. Housing is its own capability: it grants no industry, market or ship sales.
 
-Authored set: two new housing-only stations and Ring Station.
+Authored set: two new housing-only stations and Providence.
 - Tranquility Commons (Luna, `estates_quadrangle`): commutes to Thule Prime, Apollo Heritage and Jita; visits to Hakka Tulou.
-- Hakka Tulou Habitat (Mars, `zhuhai_tulou`): commutes to Heaven-Ladder, Mars's shipyards and Zhuhai Logistics; visits to Ring Station and Tranquility Commons. Heaven-Ladder is the most heavily weighted workplace. The visits are the interplanetary runs.
-- Ring Station (the Ring): keeps its market and yard, and adds commutes to Lumen Fabrication and visits to Hakka Tulou.
+- Hakka Tulou Habitat (Mars, `zhuhai_tulou`): commutes to Heaven-Ladder, Mars's shipyards and Zhuhai Logistics; visits to Providence and Tranquility Commons. Heaven-Ladder is the most heavily weighted workplace. The visits are the interplanetary runs.
+- Providence (the Ring): keeps its market and yard, and adds commutes to Lumen Fabrication and visits to Hakka Tulou.
 
 Tranquility Commons and Hakka Tulou have their own passenger-service market profiles, with climate pods and navigation computers but no dealership. Unspecified station markets use a general supply catalogue without a named dealer; Hub Station Motors belongs only to Venus's Hub Station, where the Shipyard tab exposes it.
 

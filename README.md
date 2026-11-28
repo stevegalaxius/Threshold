@@ -208,7 +208,7 @@ Some areas are off the public charts (`src/dark.lua`). A dark grid is either a m
 The dark grids are:
 
 - `milliways` off Pluto: Milliways Freeport, the pirates' main base.
-- `shoals` on the belt's orbit, halfway between Ceres and Ring Station, with its own mass driver (it joins the driver window's DISCOVERED list once found): the Shoals, a pirate industrial quarry. Slag Harbor rolls steel and presses canisters from the rock its miners haul in, Cinder Works makes ammunition, and Shoals Freeport is a pirate base with a shipyard.
+- `shoals` on the belt's orbit, halfway between Ceres and Providence, with its own mass driver (it joins the driver window's DISCOVERED list once found): the Shoals, a pirate industrial quarry. Slag Harbor rolls steel and presses canisters from the rock its miners haul in, Cinder Works makes ammunition, and Shoals Freeport is a pirate base with a shipyard.
 - `cordelia` off Uranus: Cordelia Freeport, a pirate base in the ring debris. It cuts ring ice and cracks it into deuterium: the dark fuel depot.
 - `antichthon` on Earth's orbit, opposite Earth across the Sun, with its own mass driver: Antichthon Gardens, the pirates' hydroponics farm.
 
@@ -802,7 +802,7 @@ scene preserves that scene's world.
 ## Drill sites and A-Life miners
 
 Surface drill props on Phobos, Deimos and Ceres, plus the large asteroid props at
-Ring Station, periodically blast out batches of mineable rock. The Giant
+Providence, periodically blast out batches of mineable rock. The Giant
 asteroid instance has a drill site as well, without adding A-Life pilots there.
 Each drill emits three chunks every 18 game seconds and stops at twelve
 outstanding chunks or ore stacks. Timers survive revisits and saves; overdue

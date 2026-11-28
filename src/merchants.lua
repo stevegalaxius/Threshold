@@ -6,7 +6,7 @@
 	same stock and freight board everyone else uses.
 
 	  buy       at its hub warehouse, any of its own faction's stations, and
-	            the Ring Station exchange (open to every house) a good priced under its buyBelow is bought out
+	            Providence exchange (open to every house) a good priced under its buyBelow is bought out
 	            of the station's spare stock at the market price +spread,
 	            into the house's warehouse. That pulls the shelf down and the
 	            price back up.
@@ -31,7 +31,7 @@ local Fields=require('src.fields')
 local T=require('src.tuning')
 local M={}
 
--- The Ring Station: the belt's open exchange. Every house may buy there
+-- Providence: the belt's open exchange. Every house may buy there
 -- and keep stock there; it is nobody's house.
 M.exchange='station:ring_1'
 

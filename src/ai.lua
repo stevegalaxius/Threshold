@@ -319,7 +319,7 @@ AI.aroundStations = aroundStations
 
 -- A ship in a dock's runway corridor, inside the hull's circle, of a station
 -- it isn't docking at (just undocked, or passing through): the way out is
--- the way in, straight down the axis to the marker. The Ring Station's dock
+-- the way in, straight down the axis to the marker. Providence's dock
 -- sits deep in its horseshoe, and a hauler heading off from there for a far
 -- stop turned across the inside of the horseshoe and rammed its walls.
 local function outOfRunway(game, e, x, y, docking)
@@ -567,7 +567,7 @@ local function trade(game, e, dt)
 			end
 		end
 		-- Once lined up in the cone it flies in to its own dock, which can sit
-		-- well inside the hull's circle (the Ring Station's is deep in the
+		-- well inside the hull's circle (Providence's is deep in the
 		-- horseshoe): steering round that station there turned it away from
 		-- the door every time and left it circling for ever.
 		local docking = stop.dock and e.alifeId and not e.dockMarker and stop or nil

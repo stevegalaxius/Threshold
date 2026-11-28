@@ -11,7 +11,7 @@
 	they travelled with their own staff, off the board.
 
 	Journalists and magnates ride their circuit every so often. Leaders
-	leave their seat only for summits at Ring Station: a few leaders at
+	leave their seat only for summits at Providence: a few leaders at
 	most summits, every leader at a grand one, announced in the news.
 
 	How one ends (status, flag 'notable.<id>'):

@@ -1,4 +1,4 @@
--- Ring Station: the belt's trade and logistics hub. A horseshoe open on +x,
+-- Providence: the belt's trade and logistics hub. A horseshoe open on +x,
 -- one row of berths round the inside of the bay and a dock at its back. Generated; open in the Shipyard (F2).
 station {
 	id = "ring_horseshoe", name = "Ring horseshoe",

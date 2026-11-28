@@ -60,7 +60,7 @@ Fields.orbits = {
 	-- dark = true: an unlisted place with its own mass driver (src/dark.lua),
 	-- a driver destination only once found. cartel = true: one of the
 	-- Milliways cartel's open grids, a pirate haven on the public charts. The Shoals ride the belt's orbit
-	-- halfway between Ceres and Ring Station.
+	-- halfway between Ceres and Providence.
 	-- Antichthon: Earth's orbit, directly opposite it across the Sun, where
 	-- nobody looks. The pirates' hydroponics farm.
 	antichthon = { au = 1.0, year = 1.0, phase = math.pi, cartel = true, color = { 0.45, 0.75, 0.45 } },
@@ -89,7 +89,7 @@ Fields.moons = {
 	titan = { parent = "saturn", period = 0.15, phase = 4.4, gap = 40000, color = { 0.95, 0.7, 0.35 } },
 	titania = { parent = "uranus", period = 0.09, phase = 2.0, gap = 30000, color = { 0.7, 0.72, 0.75 } },
 	triton = { parent = "neptune", period = 0.1, phase = 5.5, gap = 32000, color = { 0.8, 0.85, 0.9 } },
-	-- not a moon: Ring Station's mining field, a short hop out from the hub
+	-- not a moon: Providence's mining field, a short hop out from the hub
 	-- (the phase fixes which side of the hub's map the way out is on)
 	quarry = { parent = "ring", period = 1, phase = 0.9, gap = 16000, color = { 0.7, 0.62, 0.5 } },
 	-- and Ceres's: Ceres itself is drilled for ice, rock comes from here
@@ -372,12 +372,12 @@ local function planetField(o)
 	return field
 end
 
--- Ring Station: the belt's other stop, across the Sun from Ceres. No
+-- Providence: the belt's other stop, across the Sun from Ceres. No
 -- planet: a turning wheel station in a wide clear space kept by traffic
 -- control, with only loose rock drifting in from the field. The mining is
 -- next door in the Quarry (Fields.quarry), reached the way a moon is.
 Fields.ring = {
-	name = "Ring Station",
+	name = "Providence",
 	spawn = { 0, 3800 * T.mapScale },
 	radius = 26000 * T.mapScale,
 	mix = MIX.belt,
@@ -826,7 +826,7 @@ function Fields.configureLocations(area)
 		end
 		F.driverId = F.driverIds[1]
 	end
-	do -- moon gates (also the Quarry's, off Ring Station, which has no planet)
+	do -- moon gates (also the Quarry's, off Providence, which has no planet)
 		local function gate(to, moon, back)
 			local m = Fields.moons[moon]
 			add("to_" .. to, "Departure to " .. Fields[to].name, "moon_gate",

@@ -7,14 +7,14 @@ W.stations = {
 
 	-- Planetary industry (refining, acids, nitrates, ocean water) ships up to
 	-- each system's logistics hub by rocket: it appears there, not at the
-	-- station that used to make it. Every system has one (the Ring's is Ring Station
+	-- station that used to make it. Every system has one (the Ring's is Providence
 	-- itself; small moons go through their customs depot instead), so every cross-system trade goes hub to hub.
 	-- surface=true marks a facility down on the planet or moon.
 	mercury = {
 		{ id = "station:mercury_1", facilities={roll_steel={capacity=480},shipworks={capacity=10}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, name = "Terminator Station", layout = "estates_palace" },
 		{ id = "station:mercury_2", facilities={ceramic_works={capacity=8},silicon_refinery={capacity=24,surface=true}}, marketId = "market:mercury_2", services = { "market", "shipyard", "hangar" }, spin = -0.05, phase = 1.2943951023931953, name = "Haephestus Logistics", layout = "customs_1", hub = true  },
 		{ id = "station:mercury_3", facilities={engines_works={capacity=1},brute_assembly={capacity=2}}, marketId = "market:mercury_3", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.03, phase = 3.3887902047863905, name = "Brute Industries Shipyard", layout = "shipyard_1" },
-		{ id = "station:mercury_4", facilities={bays_works={capacity=2},drones={capacity=8}}, marketId = "market:mercury_4", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, name = "Ashgrove Drone Foundry", layout = "estates_manor" },
+		{ id = "station:mercury_4", facilities={bays_works={capacity=2},utility_works={capacity=2},drones={capacity=8}}, marketId = "market:mercury_4", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, name = "Ashgrove Drone Foundry", layout = "estates_manor" },
 		{ id = "station:mercury_5", marketId = "market:mercury_5", services = { "market", "hangar" }, spin = 0.04, name = "Daybreak Commons", layout = "estates_chandelier",
 		  residential = { population = 3000, homes = 4, routes = {
 			{ to = "station:mercury_1", kind = "work", weight = 3 },
@@ -45,7 +45,7 @@ W.stations = {
 	},
 	
 	luna = {
-		{ id = "station:luna_1", facilities={silicon_refinery={capacity=128,surface=true},electronics={capacity=48}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:luna_1", name = "Thule Prime", layout = "estates_palace"   },
+		{ id = "station:luna_1", facilities={silicon_refinery={capacity=128,surface=true},electronics={capacity=48},coil_works={capacity=8}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:luna_1", name = "Thule Prime", layout = "estates_palace"   },
 		{ id = "station:luna_2", services = { "market", "shipyard", "hangar" }, marketId = "market:luna_2", spin = -0.05, phase = 2.3415926535897933, name = "The Apollo Heritage Foundation", layout = "estates_palace"   },
 		-- residential (src/passengers.lua): housing only, no industry or ship sales
 		{ id = "station:luna_3", marketId = "market:luna_3", services = { "market", "hangar" }, spin = 0.04, phase = 3.9, name = "Tranquility Commons", layout = "estates_quadrangle",
@@ -57,7 +57,7 @@ W.stations = {
 	},
 	mars = {
 		{ id = "station:mars_1", facilities={redfu_assembly={capacity=2}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, layout = "shipyard_1", marketId = "market:mars_1", name = "Red Furnace Shipyard" },
-		{ id = "station:mars_2", facilities={coil_works={capacity=8},intaki_assembly={capacity=2}}, services = { "market", "shipyard", "hangar", "repair" }, marketId = "market:mars_2", spin = -0.05, phase = 2.3415926535897933, layout = "shipyard_1",   name = "Zhongke Intelligent Manufacturing" },
+		{ id = "station:mars_2", facilities={intaki_assembly={capacity=2}}, services = { "market", "shipyard", "hangar", "repair" }, marketId = "market:mars_2", spin = -0.05, phase = 2.3415926535897933, layout = "shipyard_1",   name = "Zhongke Intelligent Manufacturing" },
 		-- Zhuhai's logistics hub: Mars's production is on the Heaven-Ladder,
 		-- the two orbital stations are shipyards, and freight meets here
 		{ id = "station:mars_4", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:mars_4", name = "Zhuhai Logistics", layout = "customs_1", hub = true },
@@ -91,7 +91,7 @@ W.stations = {
 	},
 
 	io = {
-		{ id = "station:io_1", facilities={ceramic_works={capacity=8},acid_works={capacity=16,surface=true}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:io_1", name = "Pele Works", layout = "jovian_works" },
+		{ id = "station:io_1", facilities={ceramic_works={capacity=8},coil_works={capacity=8},acid_works={capacity=16,surface=true}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:io_1", name = "Pele Works", layout = "jovian_works" },
 		{ id = "station:io_2", facilities={lasers_works={capacity=2}}, services = { "market", "hangar", "repair" }, marketId = "market:io_2", spin = -0.05, phase = 2.3415926535897933, name = "Loki Laboratory", layout = "jovian_observatory" },
 		{ id = "station:io_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:io_3", name = "Io Customs", layout = "customs_1", customs = true },
 	},
@@ -152,12 +152,12 @@ W.stations = {
 		{ id = "station:pluto_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, primary = true, uses = { pirateBase = true }, layout = "jovian_kink", marketId = "market:pluto_1", name = "Milliways Freeport", hub = true },
 	},
 	ring = {
-		{ id = "station:ring_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.04, primary = true, name = "Ring Station", marketId = "market:ring_1", layout = "ring_horseshoe",
+		{ id = "station:ring_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.04, primary = true, name = "Providence", marketId = "market:ring_1", layout = "ring_horseshoe",
 		  -- the big ring is a town as well as a market (src/passengers.lua)
 		  residential = { population = 5000, homes = 12, routes = {
 			{ to = "station:ring_2", kind = "work", weight = 3 },
 			{ to = "station:mars_5", kind = "visit", weight = 1 } } } },
-		-- An electronics fab off Ring Station: silicon and acids in, boards out.
+		-- An electronics fab off Providence: silicon and acids in, boards out.
 		{ id = "station:ring_2", position = { x = 7000, y = -2500 }, facilities={coil_works={capacity=8},electronics={capacity=12}}, services = { "market", "hangar", "repair" }, spin = 0.03, marketId = "market:ring_2", name = "Lumen Fabrication", layout = "utility_exchange" },
 	},
 	-- Dark stations (src/dark.lua): pirate-run, off the public charts.
