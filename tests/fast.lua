@@ -204,7 +204,7 @@ return function(game)
   end
   -- military yards: hidden from buyers, stocked for their faction's police
   local Dealers=require('src.dealers')
-  for _,faction in ipairs({'estates','diwan'}) do
+  for _,faction in ipairs({'estates','diwan','jove'}) do
    local yard=Dealers.serviceYard(faction)
    assert(yard,'no military yard for '..faction)
    Dealers.state(u,yard)

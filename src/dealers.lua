@@ -158,6 +158,33 @@ end
 -- Scheduled by industry, never by UI/read access.
 function D.update(u,key,clock)
  local s,def=D.state(u,key);if not s then return end
+ -- A yard converted to fleet service can still have used stock in old saves.
+ local civilian
+ if def.civilianExchange then
+  for _,lot in ipairs(s.lots) do
+   if lot.used and not lot.playerDelivery then civilian=def.civilianExchange;break end
+  end
+ end
+ if civilian then
+  local reserved = {}
+  local deliveries, board = require('src.tasks').offersOfKind(u,'ship_delivery')
+  for id,offer in pairs(deliveries) do
+   if board[id]==offer and offer.source==key and offer.state=='reserved' then reserved[offer.lot]=true end
+  end
+  local exchange, retail = D.state(u,civilian)
+  for i=#s.lots,1,-1 do
+   local lot = s.lots[i]
+   if exchange and #exchange.lots<(retail.lots or 6)
+    and lot.used and not lot.playerDelivery and not reserved[lot.id] then
+    local moved = copy(lot)
+    moved.id = (exchange.serial or 0)+1
+    if park(u,civilian,exchange,moved) then
+     exchange.serial = moved.id
+     table.remove(s.lots,i)
+    end
+   end
+  end
+ end
  local SD=require('src.ship_delivery')
  -- (the board of ship deliveries, refreshed every ten game minutes)
  if clock>=(u.shipDeliveryRefresh or 0) then u.shipDeliveryRefresh=clock+600;SD.refresh(u,clock) end

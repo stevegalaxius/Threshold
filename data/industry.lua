@@ -25,6 +25,7 @@ local D={recipes={
  {id='use_water',market=false,service='water',item='water',cap=200},   -- (a station service: src/station_services.lua runs it)
  {id='melt_water',item='water',opening=0,cap=1200,input={item='water_ice',n=1}},
  {id='pump_water',group='resources',item='water',opening=0,cap=1200},
+ {id='extract_iron_ore',group='resources',item='iron_ore',cap=480},
  {id='refine_silicon',group='resources',item='silicon',opening=0,cap=192},
  {id='produce_acids',group='resources',item='industrial_acids',opening=0,cap=128},
  -- Medical supplies: made at Earth from electronics and water, used up
@@ -119,14 +120,18 @@ D.assemblyParts={mack_mustang={electronics=13,steel=7},
 D.serviceLineups={
  estates={'estates_whisper','estates_rapier','estates_bastion'},
  diwan={'diwan_cherubim','diwan_seraph'},
+ jove={'jove_picket','jove_vigil'},
 }
 D.assemblyFrames.estates_whisper,D.assemblyFrames.estates_rapier,D.assemblyFrames.estates_bastion=1,2,4
 D.assemblyFrames.diwan_cherubim,D.assemblyFrames.diwan_seraph=2,4
+D.assemblyFrames.jove_picket,D.assemblyFrames.jove_vigil=1,3
 D.assemblyParts.estates_whisper={electronics=12,steel=1}
 D.assemblyParts.estates_rapier={electronics=16,steel=6}
 D.assemblyParts.estates_bastion={electronics=38,steel=15}
 D.assemblyParts.diwan_cherubim={electronics=25,steel=6}
 D.assemblyParts.diwan_seraph={electronics=36,steel=9}
+D.assemblyParts.jove_picket={electronics=7,steel=2}
+D.assemblyParts.jove_vigil={electronics=22,steel=7}
 -- A military yard fits its hulls from modules it buys in, not ones it
 -- makes up: each service hull's stock loadout (data/ships/<hull>.lua, kept
 -- in step by tests/fast.lua) is an input of its assembly, so freight
@@ -137,6 +142,8 @@ D.serviceFits={
  estates_bastion={'artillery_l_base','artillery_l_base','gun_m_base','gun_m_base','gun_m_base','gun_m_base','cinder_drive','forge_reactor','nav_computer','fire_computer'},
  diwan_cherubim={'gun_m_base','gun_m_base','missile_l_base','mule_engine','kiln_reactor','tug_beam','nav_computer'},
  diwan_seraph={'gun_l_base','missile_l_base','missile_l_base','flit_engine','flit_engine','kiln_reactor','tug_beam','nav_computer'},
+ jove_picket={'pulse_s_base','flit_engine','ember_reactor','hold_pod_s','nav_computer'},
+ jove_vigil={'pulse_m_base','pulse_m_base','flit_engine','flit_engine','kiln_reactor','tug_beam','nav_computer','fire_computer'},
 }
 -- Police pilots are issued a Deep Scanner on top (src/npc_ship_supply.lua
 -- swaps it in for a utility module); the yard keeps this many on its
@@ -160,6 +167,7 @@ D.facilities={
  water_wells={policy='adaptive',recipes={'pump_water'}},
  -- adaptive, so ice follows demand instead of piling up at the wells
  ice_wells={policy='adaptive',recipes={'cut_ice'}},
+ iron_works={policy='fixed',recipes={'extract_iron_ore'}},
  silicon_refinery={policy='fixed',recipes={'refine_silicon'}},
  acid_works={policy='fixed',recipes={'produce_acids'}},
  electronics={policy='profit',recipes={'make_electronics'}},
@@ -193,7 +201,7 @@ D.recipes[#D.recipes+1]={id='make_thermal_ceramics',group='ceramics',item='therm
 -- Inputs per module, from its mass and list price the way ship parts are:
 -- one steel plate per 4 t, one electronics per 2,500 CR, and an hour of
 -- works time per 10,000 CR (half an hour at least).
---   { module, mass, price [, coils, ceramics, deuterium] }
+--   { module, mass, price [, coils, ceramics, deuterium, electronics] }
 D.moduleLines={
  launchers={maker='Gilgal Arsenal',modules={{'missile_s_base',3,4000},{'missile_m_base',8,11000},{'missile_l_base',18,26000}}},
  guns={maker='Zhongke Ordnance',modules={{'gun_s_base',4,2200},{'gun_m_base',10,6500},{'gun_l_base',24,15000},
@@ -209,9 +217,12 @@ D.moduleLines={
  -- 2 electronics each, and coils in the scanner and the tug beam.
  utility={maker='Estates Military',modules={{'nav_computer',1,2500,nil,nil,nil,2},{'fire_computer',1,6000,nil,nil,nil,2},
   {'scanner',1,4500,1,nil,nil,2},{'tug_beam',3,3500,1,nil,nil,2},{'flare_pod',2,3000,nil,nil,nil,2}}},
+ -- Leave room to accumulate an ordinary freight pickup.
+ avionics={cap=12,modules={{'guidance_computer',2,7000},{'drone_uplink',3,9000}}},
+ pods={cap=12,modules={{'hold_pod_s',2,1200,nil,nil,nil,0},{'climate_pod_s',3,4500,nil,1,nil,2}}},
 }
 -- fixed order, so recipe lists come out the same every run
-D.moduleLineOrder={'launchers','guns','bays','lasers','drills','engines','reactors','utility'}
+D.moduleLineOrder={'launchers','guns','bays','lasers','drills','engines','reactors','utility','avionics','pods'}
 for _,line in ipairs(D.moduleLineOrder) do
  local def,ids=D.moduleLines[line],{}
  for i,m in ipairs(def.modules) do
@@ -222,7 +233,7 @@ for _,line in ipairs(D.moduleLineOrder) do
   if coils then inputs[#inputs+1]={item='superconducting_coils',n=coils} end
   if ceramics then inputs[#inputs+1]={item='thermal_ceramics',n=ceramics} end
   if fuel then inputs[#inputs+1]={item='deuterium_canister',n=fuel} end
-  D.recipes[#D.recipes+1]={id='make_'..id,group=line,item=id,cap=4,time=math.max(.5,price/10000),
+  D.recipes[#D.recipes+1]={id='make_'..id,group=line,item=id,cap=def.cap or 4,time=math.max(.5,price/10000),
    reserve={service='listed',excludeProducers=true},inputs=inputs}
   ids[i]='make_'..id
  end

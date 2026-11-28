@@ -76,17 +76,17 @@ D.cast = {
 	-- Jove ------------------------------------------------------------------
 	{ id = "jove_leader", role = "leader", faction = "jove",
 	  name = "Councillor Teodor Vey", office = "Presiding Councillor of the Accord",
-	  seat = "station:jupiter_2", circuit = {},
+	  seat = "station:jupiter_1", circuit = {},
 	  goods = { "deuterium_canister", "hydrogen_canister" },
-	  -- Kyrakos stops looking the other way
+	  -- The Accord stops looking the other way
 	  stances = { { with = "milliways", to = "hostile" } } },
 	{ id = "jove_journalist", role = "journalist", faction = "jove",
 	  name = "Marisol Achterberg", office = "editor of the Jovian Ledger",
-	  seat = "station:callisto_1", circuit = { "station:jupiter_2" },
+	  seat = "station:callisto_1", circuit = { "station:jupiter_1" },
 	  outlet = "ledger", rival = "beltway" },
 	{ id = "jove_magnate", role = "magnate", faction = "jove",
 	  name = "Hesper Okonkwo", office = "skimmer baron of Olympus",
-	  seat = "station:jupiter_1", circuit = { "station:jupiter_2" },
+	  seat = "station:jupiter_1", circuit = { "station:jupiter_3" },
 	  works = { { station = "station:jupiter_1", facility = "skim_deuterium" } },
 	  goods = { "deuterium_canister" } },
 
