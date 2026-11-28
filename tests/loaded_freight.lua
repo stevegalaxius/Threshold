@@ -75,18 +75,21 @@ return function()
   if o.item==large.item and o.source==source and o.target==target and o.state=='available' then leftover=leftover+o.amount end
  end
  assert(large.amount>0 and leftover>0 and large.amount+leftover==160,'partial pickup lost the primary order remainder')
- -- An intermediate fence cannot legalize an embargoed buyer. A fence
- -- remains a valid transfer point for a shipment a buyer may accept.
+ -- An intermediate fence cannot legalize an embargoed buyer (a cartel
+ -- station's goods to a power hostile to it). A fence remains a valid
+ -- transfer point for a shipment a buyer may accept.
  local cartel='station:shoals_2'
  local goods={kind='transport',phase='delivery',order=true,stocked=true,layoutScope='economy',
-  source=cartel,target=target,item='amphetamines',amount=5}
+  source=cartel,target=target,item='steel_plate',amount=5}
  assert(Transport.embargoed(goods) and not Transport.recoveryMode(u,goods,transfer,u.clock),
   'transferring through a fence bypassed the original embargo')
  assert(Transport.recoveryMode(u,goods,cartel,u.clock)=='return','embargo prevented return to the seller')
+ -- the drugs are illegal but every station buys them: no embargo
+ goods.item='amphetamines'
+ assert(not Transport.embargoed(goods),'a station refused drugs (they trade everywhere)')
  goods.target='station:mars_5'
  assert(not Transport.embargoed(goods) and Transport.recoveryMode(u,goods,transfer,u.clock)=='transfer',
   'authorized shipment could not pass through a fence')
- assert(not Transport.recoveryMode(u,goods,target,u.clock),'hostile non-fence station accepted contraband for transfer')
  game.world:destroy()
  print('ok  loaded freight: sealed transfer, single fee budget and immediate partial remainder')
 end

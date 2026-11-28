@@ -105,12 +105,14 @@ function Rep.embargoed(s, c, item)
 	local L = require("src.locations")
 	local Dark = require("src.dark")
 	if Dark.isFence(c) or Dark.isFence(s) then return false end
+	-- the drugs trade everywhere: illegal, but the stations buy them anyway;
+	-- the risk is the police on the way in (src/contraband.lua)
+	if item and Rep.CONTRABAND[item] then return false end
 	local fs, fc = Rep.ofNode(L.canonical(s)), Rep.ofNode(L.canonical(c))
 	local function hostile(f) return Rep.stance(f, Rep.CARTEL) == "hostile" end
 	if fs == Rep.CARTEL and hostile(fc) then return true end
 	if fc == Rep.CARTEL and hostile(fs) then return true end
-	-- the drugs: only through a fence where they're banned (src/contraband.lua)
-	if item and Rep.CONTRABAND[item] and require('src.contraband').bans(nil, fc) then return true end
+
 	return false
 end
 

@@ -67,7 +67,7 @@ W.stations = {
 		-- the two orbital stations are shipyards, and freight meets here
 		{ id = "station:mars_4", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:mars_4", name = "Zhuhai Logistics", layout = "customs_1", hub = true },
 		-- residential: Zhuhai's workforce lives here, not on the shipyards
-		{ id = "station:mars_5", uses = { fence = true }, facilities={use_amphetamines={capacity=-24},use_moss={capacity=-6}}, marketId = "market:mars_5", services = { "market", "hangar" }, spin = -0.03, phase = 1.0, name = "Hakka Tulou Habitat", layout = "zhuhai_tulou",
+		{ id = "station:mars_5", facilities={use_amphetamines={capacity=-24},use_moss={capacity=-6}}, marketId = "market:mars_5", services = { "market", "hangar" }, spin = -0.03, phase = 1.0, name = "Hakka Tulou Habitat", layout = "zhuhai_tulou",
 		  residential = { population = 4000, homes = 10, routes = {
 			{ to = "station:mars_3", kind = "work", weight = 4 },
 			{ to = "station:mars_1", kind = "work", weight = 3 },
@@ -119,7 +119,7 @@ W.stations = {
 		  } },
 	},
 	callisto = {
-		{ id = "station:callisto_1", uses = { fence = true }, food = {use=64}, facilities={farm={capacity=640},use_fentanyl={capacity=-18},use_amphetamines={capacity=-4},use_moss={capacity=-8}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:callisto_1", name = "Valhalla Port", layout = "jovian_freeport" },
+		{ id = "station:callisto_1", food = {use=64}, facilities={farm={capacity=640},use_fentanyl={capacity=-18},use_amphetamines={capacity=-4},use_moss={capacity=-8}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:callisto_1", name = "Valhalla Port", layout = "jovian_freeport" },
 		{ id = "station:callisto_2", facilities={chemicals_fertilizer={type='chemicals',name='Fertilizer plant',recipes={'make_fertilizer'},capacity=160},chemicals_explosives={type='chemicals',name='Explosives plant',recipes={'make_explosives'},capacity=160}}, services = { "market", "hangar", "repair" }, marketId = "market:callisto_2", spin = -0.05, phase = 2.3415926535897933, name = "Asgard Station", layout = "jovian_works" },
 		{ id = "station:callisto_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:callisto_3", name = "Callisto Customs", layout = "customs_1", customs = true },
 	},
@@ -180,12 +180,12 @@ W.stations = {
 	-- lap every 30 minutes.
 	shoals = {
 		{ id = "station:shoals_1", position = { x = 0, y = -13000, rate = T_SHOALS }, facilities={roll_steel={capacity=240},press_canisters={capacity=800},water_melter={capacity=240}}, services = { "market", "hangar", "repair" }, spin = 0, primary = true, marketId = "market:shoals_1", name = "Slag Harbor", layout = "jovian_works" },
-		{ id = "station:shoals_2", facilities={drug_lab={name='Cartel lab',capacity=10},ammo_solid={type='ammunition',name='Solid rounds line',recipes={'make_rounds_s','make_rounds_m'},capacity=12},ammo_airburst={type='ammunition',name='Airburst rounds line',recipes={'make_airburst_s','make_airburst_m'},capacity=12},ammo_shells={type='ammunition',name='Shell line',recipes={'make_shell_s','make_shell_m','make_shell_l'},capacity=12},ammo_shot={type='ammunition',name='Shot line',recipes={'make_shot_s','make_shot_m','make_shot_l'},capacity=12},ammo_patch={type='ammunition',name='Patch kit line',recipes={'make_patch_kit'},capacity=12},process_nitrates={capacity=120},chemicals_fertilizer={type='chemicals',name='Fertilizer plant',recipes={'make_fertilizer'},capacity=160},chemicals_explosives={type='chemicals',name='Explosives plant',recipes={'make_explosives'},capacity=160}}, services = { "market", "hangar", "repair" }, position = { x = 11258, y = 6500, rate = T_SHOALS }, spin = 0.04, marketId = "market:shoals_2", name = "Cinder Works", layout = "caliphate_chemworks" },
+		{ id = "station:shoals_2", facilities={drug_lab={name='Cartel lab',capacity=20},ammo_solid={type='ammunition',name='Solid rounds line',recipes={'make_rounds_s','make_rounds_m'},capacity=12},ammo_airburst={type='ammunition',name='Airburst rounds line',recipes={'make_airburst_s','make_airburst_m'},capacity=12},ammo_shells={type='ammunition',name='Shell line',recipes={'make_shell_s','make_shell_m','make_shell_l'},capacity=12},ammo_shot={type='ammunition',name='Shot line',recipes={'make_shot_s','make_shot_m','make_shot_l'},capacity=12},ammo_patch={type='ammunition',name='Patch kit line',recipes={'make_patch_kit'},capacity=12},process_nitrates={capacity=120},chemicals_fertilizer={type='chemicals',name='Fertilizer plant',recipes={'make_fertilizer'},capacity=160},chemicals_explosives={type='chemicals',name='Explosives plant',recipes={'make_explosives'},capacity=160}}, services = { "market", "hangar", "repair" }, position = { x = 11258, y = 6500, rate = T_SHOALS }, spin = 0.04, marketId = "market:shoals_2", name = "Cinder Works", layout = "caliphate_chemworks" },
 		{ id = "station:shoals_3", services = { "market", "shipyard", "hangar", "repair" }, position = { x = -11258, y = 6500, rate = T_SHOALS }, spin = -0.05, uses = { pirateBase = true }, marketId = "market:shoals_3", name = "Shoals Freeport", layout = "jovian_freeport" },
 	},
 	-- Antichthon: the pirates' hydroponics farm, on Earth's orbit behind the Sun.
 	antichthon = {
-		{ id = "station:antichthon_1", food = {use=32}, facilities={farm={capacity=240},moss_beds={name="Moss beds",capacity=8}}, services = { "market", "hangar", "repair" }, spin = 0.04, primary = true, marketId = "market:antichthon_1", name = "Antichthon Gardens", layout = "estates_manor" },
+		{ id = "station:antichthon_1", food = {use=32}, facilities={farm={capacity=240},moss_beds={name="Moss beds",capacity=12}}, services = { "market", "hangar", "repair" }, spin = 0.04, primary = true, marketId = "market:antichthon_1", name = "Antichthon Gardens", layout = "estates_manor" },
 	},
 	cordelia = {
 		{ id = "station:cordelia_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, primary = true, uses = { pirateBase = true }, marketId = "market:cordelia_1", name = "Cordelia Freeport", layout = "jovian_spur" },
@@ -207,7 +207,13 @@ W.stations = {
 }
 -- IDs are "<home area>_<n>" slugs, assigned once. They never change when a
 -- station is renamed, retuned or moved; markets reuse their station's slug.
-W.defaults={marketId='market:general',waterUse=16,foodUse=32,foodReserveHours=4}
+W.defaults={marketId='market:general',waterUse=16,foodUse=32,foodReserveHours=4,
+ -- drugs every crewed market station takes, per food crate it eats an hour
+ -- (src/crisis.lua: stims and fentanyl at their crisis peak, moss at its
+ -- steady rate). An entry's own use_* facility overrides; drugs = false
+ -- opts it out. The cartel's own areas don't buy their product.
+ drugUse={use_amphetamines=.02,use_fentanyl=.02,use_moss=.01},
+ drugFreeAreas={milliways=true,shoals=true,antichthon=true,cordelia=true,station=true}}
 W.specials={heavenLadder={area='mars',id='station:mars_3',name='Heaven-Ladder',marketId='market:mars_3',food={use=96},facilities={ammo_solid={type='ammunition',name='Solid rounds line',recipes={'make_rounds_s','make_rounds_m'},capacity=24},ammo_airburst={type='ammunition',name='Airburst rounds line',recipes={'make_airburst_s','make_airburst_m'},capacity=24},ammo_shells={type='ammunition',name='Shell line',recipes={'make_shell_s','make_shell_m','make_shell_l'},capacity=24},ammo_shot={type='ammunition',name='Shot line',recipes={'make_shot_s','make_shot_m','make_shot_l'},capacity=24},ammo_patch={type='ammunition',name='Patch kit line',recipes={'make_patch_kit'},capacity=24},guns_works={capacity=2},press_canisters={capacity=10000},roll_steel={capacity=480},shipworks={capacity=10}},
  access={'station:mars_3','access:mars_3_2','access:mars_3_3','access:mars_3_4'}}}
 -- Read-only compatibility aliases for saves from before independent station IDs.
@@ -576,9 +582,21 @@ local function drinks(entry)
  local use=(entry.water or {}).use or W.defaults.waterUse
  if use>0 then entry.facilities=entry.facilities or {};entry.facilities.water=entry.facilities.water or {capacity=-use} end
 end
+-- Every crewed market station takes the cartel's drugs (defaults.drugUse).
+local function takesDrugs(entry,area)
+ if entry.drugs==false or W.defaults.drugFreeAreas[area or entry.area] then return end
+ local market=false
+ for _,s in ipairs(entry.services or {}) do if s=='market' then market=true end end
+ if not market then return end
+ local food=(entry.food or {}).use or W.defaults.foodUse
+ entry.facilities=entry.facilities or {}
+ for id,per in pairs(W.defaults.drugUse) do
+  if not entry.facilities[id] and food*per>0 then entry.facilities[id]={capacity=-food*per} end
+ end
+end
 function W.applyDefaults()
- for _,entries in pairs(W.stations) do for _,entry in ipairs(entries) do drinks(entry) end end
- for _,entry in pairs(W.specials) do if entry.id then drinks(entry) end end
+ for area,entries in pairs(W.stations) do for _,entry in ipairs(entries) do drinks(entry);takesDrugs(entry,area) end end
+ for _,entry in pairs(W.specials) do if entry.id then drinks(entry);takesDrugs(entry) end end
 end
 W.applyDefaults()
 return W

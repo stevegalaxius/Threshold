@@ -10,9 +10,8 @@
 	T.loungePremium, and posts the next one after its cooldown for as long
 	as the boom lasts. It's withdrawn when wildcats end the boom.
 
-	Only while the crisis is at T.crisisQuestMin or worse, and only where
-	the station can legally take the drug or is a fence (Rep.embargoed).
-	At a fence in a power that outlaws the drug (Elysium (Earth), say),
+	Only while the crisis is at T.crisisQuestMin or worse.
+	In a power that outlaws the drug (Elysium (Earth), say),
 	the run in is a smuggling run: its police sweep harder while the
 	crisis lasts (src/contraband.lua). Such a job is off the books: it
 	makes and costs no standing with that power (q.quiet).

@@ -1,7 +1,8 @@
 --[[
 	Contraband: cartel product (Rep.CONTRABAND) is illegal in the space of
 	every power that bans it (T.drugBan: the Estates, the Diwan, Zhuhai and
-	Jove), and their markets take it only through a fence (Rep.embargoed).
+	Jove). Their stations still buy and sell it (Rep.embargoed exempts it):
+	the risk is the patrols on the way in.
 	Jove's patrols fly without Deep Scanners (T.policeNoScanner), so they
 	inspect by eye. Unowned space (Neptune) has nobody to enforce anything.
 
