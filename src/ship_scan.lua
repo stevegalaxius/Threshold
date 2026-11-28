@@ -1,26 +1,51 @@
 --[[
 	Ship scans with a Deep Scanner (computer 'scanner', data/modules.lua):
-	hold the cursor on a ship within the scanner's shipRange for its
-	scanTime and its hold reads out, including what's packed in the
+	every ship within the scanner's shipRange is scanned at once, each
+	finishing after scanTime in range; leave range and that ship's scan is
+	dropped. Hover a scanned ship and its hold reads out, including what's packed in the
 	containers it carries (depth). Goods illegal in the space you're in
 	(src/contraband.lua) are marked. Wrecks and containers still read at
 	once, as before (src/hud.lua drawScanTip).
 ]]
 local data=require('src.data')
 local Pose=require("src.render_pose")
-local S={target=nil,since=0}
+local S={since=setmetatable({},{__mode='k'})}   -- ship -> when its scan started
 
--- The ship under the cursor in range, or nil.
-local function shipUnder(game,p,sc,mx,my)
- local wx,wy=game.camera:toWorld(mx,my)
- local px,py=Pose.position(p)
+local function inRange(p,e,range)
+ if e==p or e.kind~='ship' or e.dead or e.removed or e.dockState then return false end
+ local ex,ey=e.body:getPosition();local px,py=p.body:getPosition()
+ return (ex-px)^2+(ey-py)^2<range^2
+end
+
+-- Each step: start scans on ships coming into range, drop those leaving it.
+function S.update(game)
+ local p=game.player
+ local sc=p and not p.dead and not p.dockState and game:computer(p,'scanner')
+ if not sc then S.since=setmetatable({},{__mode='k'});return end
  local range=sc.shipRange or sc.radarRange
  for _,e in ipairs(game.entities) do
-  if e.kind=='ship' and e~=p and not e.dead and not e.removed and not e.dockState then
-   local ex,ey=Pose.position(e)
-   local r=(e.hull and e.hull.radius or 30)+20
-   if (ex-wx)^2+(ey-wy)^2<r*r and (ex-px)^2+(ey-py)^2<range^2 then return e end
+  if e.kind=='ship' and e~=p then
+   if inRange(p,e,range) then S.since[e]=S.since[e] or game.time else S.since[e]=nil end
   end
+ end
+ for e in pairs(S.since) do if e.dead or e.removed then S.since[e]=nil end end
+end
+-- 0..1: how far a ship's scan has got (nil: not being scanned).
+function S.progress(game,e)
+ local p=game.player;local sc=p and game:computer(p,'scanner')
+ local t=sc and S.since[e]
+ if not t then return nil end
+ local need=sc.scanTime or 0
+ return need<=0 and 1 or math.min(1,(game.time-t)/need)
+end
+
+-- The scanned (or scanning) ship under the cursor, or nil.
+local function shipUnder(game,mx,my)
+ local wx,wy=game.camera:toWorld(mx,my)
+ for e in pairs(S.since) do
+  local ex,ey=Pose.position(e)
+  local r=(e.hull and e.hull.radius or 30)+20
+  if (ex-wx)^2+(ey-wy)^2<r*r then return e end
  end
 end
 
@@ -28,16 +53,12 @@ end
 function S.lines(game,mx,my)
  local p=game.player
  local sc=p and not p.dead and game:computer(p,'scanner')
- if not sc then S.target=nil;return end
- local e=shipUnder(game,p,sc,mx,my)
- if e~=S.target then S.target,S.since=e,game.time end
+ if not sc then return end
+ local e=shipUnder(game,mx,my)
  if not e then return end
  local name=require('src.comms').factionName(game,e)..' '..require('src.comms').nameOf(e)
- local need=sc.scanTime or 0
- local done=game.time-S.since
- if done<need then
-  return {{('SCANNING %s  %d%%'):format(name,math.floor(done/need*100))}}
- end
+ local done=S.progress(game,e) or 0
+ if done<1 then return {{('SCANNING %s  %d%%'):format(name,math.floor(done*100))}} end
  local C=require('src.contraband')
  local owner=require('src.reputation').ofArea(game.fieldId)
  local open,packed=C.contents(e)
