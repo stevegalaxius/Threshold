@@ -19,7 +19,7 @@ end
 local function yardStock(key,item)
  local n=(require('data.industry').serviceYardStock or {})[item];if not n then return 0 end
  local def=require('src.dealers').def(key)
- return def and def.service and n or 0
+ return def and def.service and #def.hulls>0 and n or 0
 end
 local base
 minimum=function(key,item) return base(key,item)+yardStock(key,item) end

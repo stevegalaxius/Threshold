@@ -34,6 +34,10 @@ local generalStore = {
 	{ "ember_reactor", 1 }, { "hold_pod_s", 1 }, { "climate_pod_s", 1 }, { "cargo_container", 2 },
 }
 market { id = "market:general", station = "General store", sells = generalStore }
+market { id = "market:jupiter_1", station = "Olympus", sells = generalStore }
+market { id = "market:jupiter_2", station = "Kyrakos Naval Yard",
+	dealer = { name = "Kyrakos Naval Yard", hulls = {}, lots = 0,
+		service = "jove", civilianExchange = "station:jupiter_1" }, sells = {} }
 -- Residential services do not grant ship sales; passenger refits stay available.
 market { id = "market:venus_1", station = "Hub Station", sells = {
 	{ "climate_pod_s", 1 }, { "nav_computer", 1 },
@@ -134,6 +138,12 @@ market { id = "market:luna_1", station = "Tranquility Dock", sells = {   -- mine
 } }
 market { id = "market:luna_2", station = "Shackleton Station", sells = {   -- polar depot
 	{ "cargo_container", 3 }, { "nav_computer", 1 },
+} }
+market { id = "market:luna_4", station = "Kepler Avionics Works", sells = {
+	{ "guidance_computer", 1 }, { "drone_uplink", 1 },
+} }
+market { id = "market:ganymede_5", station = "Ganymede Outfitting Works", sells = {
+	{ "hold_pod_s", 1 }, { "climate_pod_s", 1 },
 } }
 market { id = "market:europa_1", station = "Conamara Station", sells = {   -- ice haulers
 	{ "hold_pod_s", 1 }, { "mule_engine", 1 }, { "rounds_m", 4 },

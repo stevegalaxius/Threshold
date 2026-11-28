@@ -54,6 +54,11 @@ W.stations = {
 			{ to = "station:luna_2", kind = "work", weight = 1 },
 			{ to = "station:earth_1", kind = "work", weight = 2 },
 			{ to = "station:mars_5", kind = "visit", weight = 1 } } } },
+		{ id = "station:luna_4", name = "Kepler Avionics Works", layout = "utility_exchange",
+		  marketId = "market:luna_4", services = { "market", "hangar" }, phase = 1.55, spin = -0.03, facilities = {
+			guidance_works = { type = "avionics_works", name = "Missile guidance works", capacity = 1, recipes = { "make_guidance_computer" } },
+			uplink_works = { type = "avionics_works", name = "Drone uplink works", capacity = 1, recipes = { "make_drone_uplink" } },
+		  } },
 	},
 	mars = {
 		{ id = "station:mars_1", facilities={redfu_assembly={capacity=2}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, layout = "shipyard_1", marketId = "market:mars_1", name = "Red Furnace Shipyard" },
@@ -84,8 +89,9 @@ W.stations = {
 		{ id = "station:belt_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:belt_3", name = "Ceres Logistics", layout = "customs_1", hub = true },
 	},
 	jupiter = {
-		{ id = "station:jupiter_1", facilities={skim_deuterium={capacity=4800},skim_hydrogen={capacity=20}}, services = { "market", "shipyard", "hangar" }, primary = true, name = "Olympus", adapter = "cloud" },
-		{ id = "station:jupiter_2", services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:jupiter_2", name = "Kyrakos", layout = "jovian_shipyard" },
+		{ id = "station:jupiter_1", facilities={skim_deuterium={capacity=4800},skim_hydrogen={capacity=20}}, services = { "market", "shipyard", "hangar" }, primary = true, marketId = "market:jupiter_1", name = "Olympus", adapter = "cloud" },
+		{ id = "station:jupiter_2", uses = { military = true },
+		  services = { "shipyard", "hangar" }, spin = 0.05, phase = -0.8, marketId = "market:jupiter_2", name = "Kyrakos", layout = "jovian_shipyard" },
 		{ id = "station:jupiter_3", facilities={use_medical={capacity=-4}}, services = { "market", "hangar", "repair" }, spin = -0.04, phase = 2.3415926535897933, marketId = "market:jupiter_3", name = "Jovian Logistics", layout = "customs_1", hub = true },
 				
 	},
@@ -93,7 +99,7 @@ W.stations = {
 	io = {
 		{ id = "station:io_1", facilities={ceramic_works={capacity=8},coil_works={capacity=8},acid_works={capacity=16,surface=true}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:io_1", name = "Pele Works", layout = "jovian_works" },
 		{ id = "station:io_2", facilities={lasers_works={capacity=2}}, services = { "market", "hangar", "repair" }, marketId = "market:io_2", spin = -0.05, phase = 2.3415926535897933, name = "Loki Laboratory", layout = "jovian_observatory" },
-		{ id = "station:io_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:io_3", name = "Io Customs", layout = "customs_1", customs = true },
+		{ id = "station:io_3", facilities = { iron_works = { name = "Io iron pits", capacity = 240, surface = true } }, services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:io_3", name = "Io Customs", layout = "customs_1", customs = true },
 	},
 	europa = {
 		{ id = "station:europa_1", facilities={water_wells={capacity=360,surface=true},alkali_works={capacity=24,surface=true}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:europa_1", name = "Conamara Station", layout = "jovian_stack" },
@@ -104,6 +110,13 @@ W.stations = {
 		{ id = "station:ganymede_1", facilities={produce_nitrates={capacity=340,surface=true}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:ganymede_1", name = "Galileo Regio", layout = "jovian_works" },
 		{ id = "station:ganymede_2", facilities={make_medical={capacity=12}}, services = { "market", "hangar", "repair" }, marketId = "market:ganymede_2", spin = -0.05, phase = 2.3415926535897933, name = "Uruk Station", layout = "jovian_dingus" },
 		{ id = "station:ganymede_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:ganymede_3", name = "Ganymede Customs", layout = "customs_1", customs = true },
+		{ id = "station:ganymede_4", name = "Ganymede Canister Works", layout = "jovian_works", services = { "market", "hangar" },
+		  phase = 1.55, spin = -0.03, facilities = { press_canisters = { capacity = 2000 } } },
+		{ id = "station:ganymede_5", name = "Ganymede Outfitting Works", layout = "jovian_works",
+		  marketId = "market:ganymede_5", services = { "market", "hangar" }, phase = 3.15, spin = 0.03, facilities = {
+			cargo_pod_works = { type = "pods_works", name = "Cargo pod works", capacity = 1, recipes = { "make_hold_pod_s" } },
+			climate_pod_works = { type = "pods_works", name = "Climate pod works", capacity = 1, recipes = { "make_climate_pod_s" } },
+		  } },
 	},
 	callisto = {
 		{ id = "station:callisto_1", food = {use=64}, facilities={farm={capacity=640},use_fentanyl={capacity=-18},use_amphetamines={capacity=-4},use_moss={capacity=-8}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:callisto_1", name = "Valhalla Port", layout = "jovian_freeport" },
@@ -195,7 +208,7 @@ W.stations = {
 -- IDs are "<home area>_<n>" slugs, assigned once. They never change when a
 -- station is renamed, retuned or moved; markets reuse their station's slug.
 W.defaults={marketId='market:general',waterUse=16,foodUse=32,foodReserveHours=4}
-W.specials={heavenLadder={area='mars',id='station:mars_3',name='Heaven-Ladder',marketId='market:mars_3',food={use=96},facilities={ammo_solid={type='ammunition',name='Solid rounds line',recipes={'make_rounds_s','make_rounds_m'},capacity=24},ammo_airburst={type='ammunition',name='Airburst rounds line',recipes={'make_airburst_s','make_airburst_m'},capacity=24},ammo_shells={type='ammunition',name='Shell line',recipes={'make_shell_s','make_shell_m','make_shell_l'},capacity=24},ammo_shot={type='ammunition',name='Shot line',recipes={'make_shot_s','make_shot_m','make_shot_l'},capacity=24},ammo_patch={type='ammunition',name='Patch kit line',recipes={'make_patch_kit'},capacity=24},guns_works={capacity=2},press_canisters={capacity=12000},roll_steel={capacity=480},shipworks={capacity=10}},
+W.specials={heavenLadder={area='mars',id='station:mars_3',name='Heaven-Ladder',marketId='market:mars_3',food={use=96},facilities={ammo_solid={type='ammunition',name='Solid rounds line',recipes={'make_rounds_s','make_rounds_m'},capacity=24},ammo_airburst={type='ammunition',name='Airburst rounds line',recipes={'make_airburst_s','make_airburst_m'},capacity=24},ammo_shells={type='ammunition',name='Shell line',recipes={'make_shell_s','make_shell_m','make_shell_l'},capacity=24},ammo_shot={type='ammunition',name='Shot line',recipes={'make_shot_s','make_shot_m','make_shot_l'},capacity=24},ammo_patch={type='ammunition',name='Patch kit line',recipes={'make_patch_kit'},capacity=24},guns_works={capacity=2},press_canisters={capacity=10000},roll_steel={capacity=480},shipworks={capacity=10}},
  access={'station:mars_3','access:mars_3_2','access:mars_3_3','access:mars_3_4'}}}
 -- Read-only compatibility aliases for saves from before independent station IDs.
 W.aliases={

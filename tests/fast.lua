@@ -204,6 +204,10 @@ return function(game)
   end
   -- military yards: hidden from buyers, stocked for their faction's police
   local Dealers=require('src.dealers')
+  local kyrakos='station:jupiter_2'
+  assert(Dealers.def(kyrakos).service=='jove' and #Dealers.lots(u,kyrakos,true)==0
+   and not Dealers.serviceYard('jove') and not Dealers.buildsShips(kyrakos),
+   'Kyrakos assigned ships before its fleet was authored')
   for _,faction in ipairs({'estates','diwan'}) do
    local yard=Dealers.serviceYard(faction)
    assert(yard,'no military yard for '..faction)

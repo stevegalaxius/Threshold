@@ -618,7 +618,11 @@ function api.market(def)
 	if def.ships ~= nil then fail(("market '%s': ships is gone; use dealer = { name, hulls, lots, ... } (src/dealers.lua)"):format(def.station)) end
 	if def.dealer ~= nil then
 		local d = def.dealer
-		if type(d) ~= "table" or type(d.hulls) ~= "table" or #d.hulls == 0 then fail(("market '%s': dealer needs a hulls list"):format(def.station)) end
+		if type(d) ~= "table" or type(d.hulls) ~= "table" then fail(("market '%s': dealer needs a hulls list"):format(def.station)) end
+		-- A reserved service yard can exist before its faction has an authored fleet.
+		if #d.hulls == 0 and not (type(d.service) == "string" and d.lots == 0 and not d.assembly) then
+			fail(("market '%s': dealer needs at least one hull"):format(def.station))
+		end
 		d.name = d.name or (def.station .. " shipyard")
 		d.lots = d.lots or 6
 	end

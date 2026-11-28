@@ -25,6 +25,7 @@ local D={recipes={
  {id='use_water',market=false,service='water',item='water',cap=200},   -- (a station service: src/station_services.lua runs it)
  {id='melt_water',item='water',opening=0,cap=1200,input={item='water_ice',n=1}},
  {id='pump_water',group='resources',item='water',opening=0,cap=1200},
+ {id='extract_iron_ore',group='resources',item='iron_ore',cap=480},
  {id='refine_silicon',group='resources',item='silicon',opening=0,cap=192},
  {id='produce_acids',group='resources',item='industrial_acids',opening=0,cap=128},
  -- Medical supplies: made at Earth from electronics and water, used up
@@ -160,6 +161,7 @@ D.facilities={
  water_wells={policy='adaptive',recipes={'pump_water'}},
  -- adaptive, so ice follows demand instead of piling up at the wells
  ice_wells={policy='adaptive',recipes={'cut_ice'}},
+ iron_works={policy='fixed',recipes={'extract_iron_ore'}},
  silicon_refinery={policy='fixed',recipes={'refine_silicon'}},
  acid_works={policy='fixed',recipes={'produce_acids'}},
  electronics={policy='profit',recipes={'make_electronics'}},
@@ -193,7 +195,7 @@ D.recipes[#D.recipes+1]={id='make_thermal_ceramics',group='ceramics',item='therm
 -- Inputs per module, from its mass and list price the way ship parts are:
 -- one steel plate per 4 t, one electronics per 2,500 CR, and an hour of
 -- works time per 10,000 CR (half an hour at least).
---   { module, mass, price [, coils, ceramics, deuterium] }
+--   { module, mass, price [, coils, ceramics, deuterium, electronics] }
 D.moduleLines={
  launchers={maker='Gilgal Arsenal',modules={{'missile_s_base',3,4000},{'missile_m_base',8,11000},{'missile_l_base',18,26000}}},
  guns={maker='Zhongke Ordnance',modules={{'gun_s_base',4,2200},{'gun_m_base',10,6500},{'gun_l_base',24,15000},
@@ -209,9 +211,12 @@ D.moduleLines={
  -- 2 electronics each, and coils in the scanner and the tug beam.
  utility={maker='Estates Military',modules={{'nav_computer',1,2500,nil,nil,nil,2},{'fire_computer',1,6000,nil,nil,nil,2},
   {'scanner',1,4500,1,nil,nil,2},{'tug_beam',3,3500,1,nil,nil,2},{'flare_pod',2,3000,nil,nil,nil,2}}},
+ -- Leave room to accumulate an ordinary freight pickup.
+ avionics={cap=12,modules={{'guidance_computer',2,7000},{'drone_uplink',3,9000}}},
+ pods={cap=12,modules={{'hold_pod_s',2,1200,nil,nil,nil,0},{'climate_pod_s',3,4500,nil,1,nil,2}}},
 }
 -- fixed order, so recipe lists come out the same every run
-D.moduleLineOrder={'launchers','guns','bays','lasers','drills','engines','reactors','utility'}
+D.moduleLineOrder={'launchers','guns','bays','lasers','drills','engines','reactors','utility','avionics','pods'}
 for _,line in ipairs(D.moduleLineOrder) do
  local def,ids=D.moduleLines[line],{}
  for i,m in ipairs(def.modules) do
@@ -222,7 +227,7 @@ for _,line in ipairs(D.moduleLineOrder) do
   if coils then inputs[#inputs+1]={item='superconducting_coils',n=coils} end
   if ceramics then inputs[#inputs+1]={item='thermal_ceramics',n=ceramics} end
   if fuel then inputs[#inputs+1]={item='deuterium_canister',n=fuel} end
-  D.recipes[#D.recipes+1]={id='make_'..id,group=line,item=id,cap=4,time=math.max(.5,price/10000),
+  D.recipes[#D.recipes+1]={id='make_'..id,group=line,item=id,cap=def.cap or 4,time=math.max(.5,price/10000),
    reserve={service='listed',excludeProducers=true},inputs=inputs}
   ids[i]='make_'..id
  end
