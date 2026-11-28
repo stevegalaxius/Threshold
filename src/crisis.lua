@@ -13,9 +13,11 @@
 	                    Crews pushing extra shifts.
 	  fentanyl          food shortage: its food output down (src/food.lua),
 	                    or its crates under T.crisisFoodHours of eating.
-	  cannabinoid_moss  no wildcats (src/wildcats.lua) in its system. The
-	                    leisure drug: it rises when things go *well*, so
-	                    clearing a system's sites is a lever on it.
+	  cannabinoid_moss  not a crisis: the leisure drug runs at its authored
+	                    rate, and drops to T.crisisThreatUse of it while
+	                    wildcats (src/wildcats.lua) are about in its system,
+	                    so clearing a system's sites brings it back. No
+	                    news, jobs, trade cut or police heat for it.
 
 	A condition has to hold for the drug's check hours before a crisis
 	starts, and has to stay gone for its resolve hours before it ends.
@@ -46,7 +48,8 @@ local Cr={}
 Cr.AXES={
  production_pressure={drug='amphetamines',check='crisisBusyHours',resolve='crisisBusyResolveHours'},
  food_shortage={drug='fentanyl',check='crisisFoodCheckHours',resolve='crisisFoodResolveHours'},
- low_threat={drug='cannabinoid_moss',check='crisisCalmHours',resolve='crisisCalmResolveHours'},
+ -- (moss is no crisis: wildcats about put a damper on a steady demand)
+ wildcat_threat={drug='cannabinoid_moss',check='crisisThreatHours',resolve='crisisThreatResolveHours',damper=true},
 }
 
 -- The recipes that a crisis drives, by station: { [key] = { recipe, ... } }.
@@ -91,10 +94,10 @@ function signal.food_shortage(u,key)
  local low=hours<T.crisisFoodHours and clamp(1-hours/T.crisisFoodHours) or 0
  return math.max(hungry,low)
 end
-function signal.low_threat(u,key,ctx)
+function signal.wildcat_threat(u,key,ctx)
  local place=L.byId[key]
  local n=ctx.wildcats[system(place and place.area)] or 0
- return n<=T.crisisCalmWildcats and 1 or 0
+ return n>T.crisisCalmWildcats and 1 or 0
 end
 
 -- Live wildcats by system, and docked NPCs by station: once a tick.
@@ -136,13 +139,12 @@ local function placeName(key) return (L.byId[key] or {}).name or key end
 local HEADLINES={
  production_pressure={start='Double shifts at %s: stim sales climb',stop='%s eases off the double shifts'},
  food_shortage={start='Short of food, crews at %s turn to fentanyl',stop='Food is back on the tables at %s'},
- low_threat={start='Clear skies over %s: moss is the drink of the docks',stop='Wildcats back near %s: the moss lounges empty'},
 }
 local function news(u,key,axis,what)
  local N=require('src.news');local Outlets=require('data.outlets')
  local place=L.byId[key];if not place then return end
  local text=HEADLINES[axis][what]
- local where=axis=='low_threat' and what=='start' and (Fields[place.area] and Fields[place.area].name or place.area) or placeName(key)
+ local where=placeName(key)
  for _,o in ipairs(Outlets.order) do
   if N.covers(u,o,place.area) then
    N.publish(u,{outlet=o,kind='crisis',area=place.area,station=key,good=Cr.AXES[axis].drug,headline=text:format(where),fact='crisis:'..key..':'..axis..':'..what})
@@ -160,11 +162,11 @@ function Cr.step(u,key,axis,s,dt,clock)
  else e.calm=e.calm+hours;e.held=math.max(0,e.held-hours*T.crisisHeldDecay) end
  if not e.active and e.held>=T[def.check] then
   e.active=true;e.since=clock;e.axis=axis
-  news(u,key,axis,'start')
+  if not def.damper then news(u,key,axis,'start') end
   require('src.simulation_history').note(u,'crisis_start',clock,(L.byId[key] or {}).area,{},{station=key,drug=def.drug,axis=axis},nil)
  elseif e.active and e.calm>=T[def.resolve] then
   e.active=false;e.since=nil;e.held=0
-  news(u,key,axis,'stop')
+  if not def.damper then news(u,key,axis,'stop') end
  end
  local goal=e.active and math.max(s,T.crisisFloor) or 0
  local step=T.crisisEase*hours
@@ -195,13 +197,16 @@ function Cr.useScale(u,key,c)
  if not c.crisis then return 1 end
  local e=u and Cr.get(u,key,c.item)
  local i=e and e.intensity or 0
+ if Cr.AXES[c.crisis].damper then return 1-(1-T.crisisThreatUse)*i end
  return T.crisisBaseUse+(1-T.crisisBaseUse)*i
 end
 -- The worst crisis at a station right now (0 when none).
+local function crisis(e) return not (e.axis and Cr.AXES[e.axis] and Cr.AXES[e.axis].damper) and e.axis~='low_threat' end
+Cr.isCrisis=crisis
 function Cr.intensity(u,key)
  local r=u and u.stations and u.stations[key]
  local best,drug=0
- for d,e in pairs(r and r.crisis or {}) do if (e.intensity or 0)>best then best,drug=e.intensity,d end end
+ for d,e in pairs(r and r.crisis or {}) do if crisis(e) and (e.intensity or 0)>best then best,drug=e.intensity,d end end
  return best,drug
 end
 -- What a station in crisis keeps of its usual stock of other goods.
@@ -224,7 +229,7 @@ function Cr.heat(u,area)
  for _,key in ipairs(L.stations(area,'trade')) do
   local r=u.stations and u.stations[key]
   for drug,e in pairs(r and r.crisis or {}) do
-   if e.active and require('src.contraband').illegal(u,Rep.ofNode(key),drug) then best=math.max(best,e.intensity or 0) end
+   if e.active and crisis(e) and require('src.contraband').illegal(u,Rep.ofNode(key),drug) then best=math.max(best,e.intensity or 0) end
   end
  end
  return best
@@ -235,7 +240,7 @@ function Cr.list(u)
  for key in pairs(Cr.consumers()) do
   local r=u.stations and u.stations[key]
   for drug,e in pairs(r and r.crisis or {}) do
-   if e.active then out[#out+1]={station=key,drug=drug,axis=e.axis,intensity=e.intensity,since=e.since} end
+   if e.active and crisis(e) then out[#out+1]={station=key,drug=drug,axis=e.axis,intensity=e.intensity,since=e.since} end
   end
  end
  table.sort(out,function(a,b) return a.intensity>b.intensity or a.intensity==b.intensity and a.station..a.drug<b.station..b.drug end)

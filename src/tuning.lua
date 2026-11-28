@@ -762,7 +762,8 @@ T.bribeMin, T.bribeShare, T.bribeStanding = 250, 0.4, 5
 T.bribeChance = { estates = 0.2, diwan = 0.35 }   -- by inspecting power
 
 -- Station crises: drug demand that follows what a station is going through
--- (src/crisis.lua). A use_* drug facility's authored capacity is its peak.
+-- (src/crisis.lua). A use_* stim or fentanyl facility's authored capacity is
+-- its peak; moss runs at its authored rate unless wildcats are about.
 T.crisisTick=60               -- s of game clock between crisis updates
 T.crisisBaseUse=.3            -- share of the peak a calm station still uses
 T.crisisEase=3                -- intensity moves at most this much a game hour
@@ -777,10 +778,11 @@ T.crisisBusyResolveHours=.25   -- and hours of quiet before it ends
 T.crisisFoodHours=2           -- under this many hours of food in store counts as short
 T.crisisFoodCheckHours=.33
 T.crisisFoodResolveHours=.25
--- cannabinoid moss: no wildcats in the station's system
+-- cannabinoid moss: steady leisure use, damped while wildcats are about
 T.crisisCalmWildcats=0        -- live wildcats the system can hold and still count as safe
-T.crisisCalmHours=.75
-T.crisisCalmResolveHours=.33
+T.crisisThreatHours=.33       -- wildcats about this long before the docks go quiet
+T.crisisThreatResolveHours=.5 -- and gone this long before moss use returns
+T.crisisThreatUse=.3          -- share of its moss a threatened station still uses
 -- what a crisis does beyond the market
 T.crisisInspectBoost=.3       -- added to T.inspectChance near a station in an outlawed crisis
 T.crisisQuestMin=.4           -- intensity before a station posts a drug_crisis delivery

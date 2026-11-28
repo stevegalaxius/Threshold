@@ -49,7 +49,7 @@ local D={recipes={
  {id='grow_moss',group='moss_beds',item='cannabinoid_moss',batch=4,cap=40,inputs={{item='fertilizer',n=1},{item='water',n=1}}},
  {id='use_amphetamines',market=false,item='amphetamines',cap=96,crisis='production_pressure'},
  {id='use_fentanyl',market=false,item='fentanyl',cap=96,crisis='food_shortage'},
- {id='use_moss',market=false,item='cannabinoid_moss',cap=96,crisis='low_threat'},
+ {id='use_moss',market=false,item='cannabinoid_moss',cap=96,crisis='wildcat_threat'},
  -- using hydrogen up (the inner planets' industry)
  {id='burn_hydrogen',market=false,item='hydrogen_canister',cap=60},
 }}

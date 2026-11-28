@@ -1016,17 +1016,21 @@ return function(game)
   for _=1,math.ceil(T.crisisFoodResolveHours*12)+30 do clock=clock+300;Cr.step(u,key,'food_shortage',0,300,clock) end
   assert(not e.active and e.intensity==0,'the fentanyl crisis never ended')
   assert(not Q.generators.drug_crisis.keep(u,{giver=key,item='fentanyl'}),'a crisis delivery outlived its crisis')
-  -- a live wildcat of a site in Jupiter's system: no safe skies at Callisto
+  -- moss is steady leisure use, damped while wildcats are in the system
+  local moss=C.byId.use_moss
+  assert(Cr.useScale(u,key,moss)==1,'calm moss use is not its authored rate')
   local ctx2=Cr.context(u)
   local sys=Fields.moons[L.byId[key].area] and Fields.moons[L.byId[key].area].parent or L.byId[key].area
-  assert(Cr.signal.low_threat(u,key,ctx2)==(((ctx2.wildcats[sys] or 0)<=T.crisisCalmWildcats) and 1 or 0))
   ctx2.wildcats[sys]=1
-  assert(Cr.signal.low_threat(u,key,ctx2)==0,'a wildcat in the system still reads as safe skies')
-  -- Elysium (Earth) is an Estates fence: a moss crisis there heats up Earth's police
-  for _=1,200 do clock=clock+300;Cr.step(u,'station:earth_2','low_threat',1,300,clock) end
+  assert(Cr.signal.wildcat_threat(u,key,ctx2)==1,'a wildcat in the system was not noticed')
+  for _=1,60 do clock=clock+300;Cr.step(u,key,'wildcat_threat',1,300,clock) end
+  assert(math.abs(Cr.useScale(u,key,moss)-T.crisisThreatUse)<1e-9,'wildcats did not damp moss use')
+  assert(Cr.intensity(u,key)==0 and #Q.generators.drug_crisis.propose(u,key,clock,{taken={}})==0,'damped moss counted as a crisis')
+  -- Elysium (Earth) is an Estates fence: a fentanyl crisis there heats up Earth's police
+  for _=1,200 do clock=clock+300;Cr.step(u,'station:earth_2','food_shortage',1,300,clock) end
   assert(Cr.heat(u,L.byId['station:earth_2'].area)>0,'an outlawed crisis added no police heat')
   assert(Cr.heat(u,L.byId[key].area)==0,'Jovian space has no ban to enforce')
-  print('ok  drug crises: food shortage drives fentanyl, delivery offered, settles; wildcats and police heat')
+  print('ok  drug crises: food shortage drives fentanyl, delivery offered, settles; wildcats damp moss; police heat')
  end
  print('ALL TESTS PASSED')
 end
