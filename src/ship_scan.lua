@@ -56,7 +56,7 @@ function S.lines(game,mx,my)
  if not sc then return end
  local e=shipUnder(game,mx,my)
  if not e then return end
- local name=require('src.comms').factionName(game,e)..' '..require('src.comms').nameOf(e)
+ local name=require('src.comms').factionName(game,e)..' '..require('src.comms').nameOf(e,game)
  local done=S.progress(game,e) or 0
  if done<1 then return {{('SCANNING %s  %d%%'):format(name,math.floor(done*100))}} end
  local C=require('src.contraband')

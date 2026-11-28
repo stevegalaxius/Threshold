@@ -44,33 +44,6 @@ Sat.kinds = {
 -- new kind and the old husk is taken away (Sat.populate).
 Sat.retired = { fuel = true, vendor = true }
 
--- Broadcast range (game units) and cooldown (game seconds) so the same
--- satellite doesn't hail the same ship more than once every few minutes.
-Sat.broadcastRange = 1800
-Sat.broadcastCooldown = 180
-
--- Broadcast message pools (src/dialogs/sat_broadcast.lua reads ch.v.msgs).
--- Each entry is { text, type } where type is 'propaganda', 'market', or 'crisis'.
-Sat.broadcastMsgs = {
- -- faction propaganda
- { text = '"This is your loyal service satellite. Remember: the {speaker.faction} stands with every vessel in these lanes."', type = 'propaganda' },
- { text = '"The {speaker.faction} thanks you for your compliance. Report any suspicious activity on this frequency."', type = 'propaganda' },
- { text = '"This channel is maintained by the {speaker.faction}. Unauthorized broadcasting is punishable by seizure."', type = 'propaganda' },
- { text = '"The {speaker.faction} wishes to remind all operators: open your manifests before approaching a controlled node."', type = 'propaganda' },
- { text = '"Loyalty is its own reward. The {speaker.faction} patrols keep this system safe for law-abiding operators."', type = 'propaganda' },
- -- market alerts
- { text = '"Market update: fuel prices are spiking at {sat.field} trade hub. Stock up or wait it out."', type = 'market' },
- { text = '"Trade advisory: demand for ammo is rising across the {sat.field} sector. Freight rates may be favourable."', type = 'market' },
- { text = '"Market tip: {sat.field} stations are running low on patch kits. Consider carrying surplus."', type = 'market' },
- { text = '"Price watch: ore values on {sat.field} are falling. Miners are advised to hold or move to a rival node."', type = 'market' },
- { text = '"Commercial notice: fuel shortages expected at {sat.field} next cycle. Secure your supply early."', type = 'market' },
- -- crisis alerts
- { text = '"Alert: hostile activity reported near {sat.field}. Vessels are advised to alter course and report sightings."', type = 'crisis' },
- { text = '"Warning: a blockade has been established at {sat.field}. All outbound traffic is being intercepted."', type = 'crisis' },
- { text = '"Emergency broadcast: pirate activity has surged near {sat.field}. Travel with escort vessels if possible."', type = 'crisis' },
- { text = '"Advisory: {sat.field} has reported a crisis. Avoid the area and monitor official channels for updates."', type = 'crisis' },
-}
-
 local function copy(t)
 	if type(t) ~= "table" then return t end
 	local o = {}
@@ -78,76 +51,91 @@ local function copy(t)
 	return o
 end
 
--- Build a message list for a given satellite: 2-4 messages drawn from all three
--- pools. The satellite record gets ch.v.msgs and ch.v.freq set before the
--- comms channel opens.
-function Sat.buildMsgs(r)
- local msgs = {}
- -- always include at least one from each pool
- local pools = { propaganda = {}, market = {}, crisis = {} }
- for _, m in ipairs(Sat.broadcastMsgs) do
-  pools[m.type][#pools[m.type] + 1] = m
- end
- for _, pool in ipairs({ pools.propaganda, pools.market, pools.crisis }) do
-  if #pool > 0 then msgs[#msgs + 1] = pool[love.math and love.math.random(1, #pool) or 1] end
- end
- -- add 0-2 extra from random pools
- for _ = 1, love.math and love.math.random(0, 2) or 1 do
-  local src = pools.propaganda[love.math and love.math.random(1, #pools.propaganda) or 1]
-  if src then msgs[#msgs + 1] = copy(src) end
- end
- return msgs
+-- Broadcasts ---------------------------------------------------------------
+--
+-- A broadcast satellite hails the player when they pass within
+-- Sat.broadcastRange (src/dialogs/sat_broadcast.lua). What it plays is its
+-- owner's paper (src/news.lua): the outlet's latest headlines and its
+-- ticker lines for the area, spin and all, between station idents. In
+-- unclaimed space it carries the papers read everywhere. Each satellite
+-- hails again only after Sat.broadcastCooldown (r.hailedAt, saved with the
+-- record), and one the player jammed stays quiet for Sat.jamQuiet.
+Sat.broadcastRange, Sat.broadcastCooldown, Sat.jamQuiet = 1800, 600, 3600
+Sat.broadcastLines = 4      -- items in one broadcast, at most
+
+-- Station idents, read between items: {owner} is the faction, {area} the place.
+Sat.broadcastIdents = {
+	"This channel is maintained by {owner}. Unauthorized transmission on this frequency is an offence.",
+	"{owner} reminds all operators: open your manifests before approaching a controlled node.",
+	"Traffic in {area} is monitored for your safety. Report suspicious vessels on this frequency.",
+	"{owner} patrols keep these lanes open for law-abiding operators.",
+}
+
+local function areaName(f) local F = require("src.fields")[f]; return F and F.name or f end
+local function ownerName(r)
+	local f = Sat.faction(r)
+	local d = f and require("src.reputation").FACTIONS[f]
+	return d and d.name or "the local traffic authority"
 end
 
--- Broadcast adapter: a lightweight stand-in for the satellite as a "speaker"
--- ship object. Comms.open() expects ships with .name, .hull, .def, etc. We
--- only need the identity properties the comms tokens resolve (name, faction).
-local function satAdapter(r)
- return {
-  name = r.name or "satellite",
-  def = { name = r.name },
-  _satRecord = r,
- }
+-- What a satellite plays now: a list of { text, kind } ('news', 'market',
+-- 'ident'), newest stories first, then the area's prices.
+function Sat.broadcastItems(universe, r)
+	local N = require("src.news")
+	local items = {}
+	local outlets = N.carried(nil, r.field)
+	local clock = universe.clock or 0
+	for _, o in ipairs(outlets) do
+		for _, st in ipairs(N.find(universe, { outlet = o, within = N.T.storyLife }, 4)) do
+			if #items >= 2 then break end
+			if st.clock <= clock and not st.notice then items[#items + 1] = { text = N.headline(st), kind = "news" } end
+		end
+	end
+	local mine = outlets[1]
+	if mine then
+		local local_, wire = {}, {}
+		for _, line in ipairs(N.tickerLines(universe, mine)) do
+			local t = line.area == r.field and not line.wire and local_ or wire
+			t[#t + 1] = line
+		end
+		for _, line in ipairs(#local_ > 0 and local_ or wire) do
+			if #items >= Sat.broadcastLines - 1 then break end
+			items[#items + 1] = { text = "Price watch: " .. N.tickerText(line), kind = "market" }
+		end
+	end
+	local idents = Sat.broadcastIdents
+	local seed = math.floor(clock / 60) + #(r.id or "")
+	local ident = idents[seed % #idents + 1]:gsub("{owner}", ownerName(r)):gsub("{area}", areaName(r.field))
+	table.insert(items, math.min(#items + 1, 2), { text = ident, kind = "ident" })
+	return items
 end
 
--- Open a broadcast comms channel from a satellite to a ship. The satellite
--- is a non-ship speaker; the ship is the listener. Returns the channel or
--- false/why.
-function Sat.broadcast(game, r, ship)
- if not r or not ship then return false, "no target" end
- if r.kind ~= "broadcast" then return false, "not a broadcast satellite" end
- if Sat.dry(r) then return false, "out of fuel" end
- local Comms = require("src.comms")
- -- check if this ship already has an open channel from any source
- for _, ch in ipairs(Comms.channels) do
-  if not ch.closed and ch.listener == ship then return false, "already in comms" end
- end
- local msgs = Sat.buildMsgs(r)
- if #msgs == 0 then return false, "no messages" end
- local freq = r.freq or math.random(1000, 9999)
- local adapter = satAdapter(r)
- local ch = Comms.open(game, "sat_broadcast", adapter, ship,
-  { sat = r, satEntity = game and game.fieldId == r.field and Sat.entity(game, r.id) or nil,
-   freq = freq, msgs = msgs, idx = 1 })
- if ch and Comms.onBroadcast then Comms.onBroadcast(game, r, ship) end
- return ch
+-- Whether a satellite would hail now.
+function Sat.mayHail(universe, r)
+	if r.kind ~= "broadcast" or r.lost or Sat.dry(r) then return false end
+	local clock = universe.clock or 0
+	if r.jammedAt and clock - r.jammedAt < Sat.jamQuiet then return false end
+	return not r.hailedAt or clock - r.hailedAt >= Sat.broadcastCooldown
 end
 
--- Ship-to-satellite cooldown tracker. Key: ship body pointer (or player ID);
--- value: { [satellite_id] = clock } when this satellite may hail again.
-local broadcastCooldowns = setmetatable({}, { __mode = "k" })
-
--- Whether a ship may be hailed by a given satellite, now.
-function Sat.mayHail(u, r, ship)
- local last = broadcastCooldowns[ship] and broadcastCooldowns[ship][r.id]
- if not last then return true end
- return (u.clock or 0) - last >= Sat.broadcastCooldown
-end
-
--- Record that this satellite hailed this ship.
-function Sat.hailed(u, r, ship)
- if not broadcastCooldowns[ship] then broadcastCooldowns[ship] = {} end
- broadcastCooldowns[ship][r.id] = u.clock or 0
+-- Open a broadcast from satellite husk e to ship (the player). Returns the
+-- channel, or false and why.
+function Sat.broadcast(game, e, ship)
+	local u = game.universe
+	local r = e and e.sat and Sat.get(u, e.sat)
+	if not r or not ship then return false, "no target" end
+	if not Sat.mayHail(u, r) then return false, "quiet" end
+	if ship.comms or e.comms then return false, "already in comms" end
+	local items = Sat.broadcastItems(u, r)
+	r.hailedAt = u.clock or 0
+	if not r.freq then
+		local h = 0
+		for i = 1, #r.id do h = (h * 31 + r.id:byte(i)) % 9973 end
+		r.freq = 400 + (h % 900) / 10
+	end
+	return require("src.comms").open(game, "sat_broadcast", e, ship,
+		{ sat = r.id, satName = r.name, area = areaName(r.field), owner = ownerName(r),
+			freq = ("%.1f"):format(r.freq), items = items, idx = 0 })
 end
 
 local function store(universe)
@@ -233,6 +221,12 @@ function Sat.layout(fieldId, field)
 		out[#out + 1] = { id = ("%s_hub_%d"):format(fieldId, n), n = n, kind = "hub", buoy = buoys[n],
 			alt = hubAlt, angle = rng:random() * math.pi * 2,
 			name = ("%s trade hub%s"):format(def.names or field.name or fieldId, (def.hubs or 0) > 1 and (" " .. n) or "") }
+	end
+	-- broadcasts: their own slots too (ids <field>_bcast_<n>), after the hubs
+	for n = 1, def.broadcasts or 0 do
+		out[#out + 1] = { id = ("%s_bcast_%d"):format(fieldId, n), n = n, kind = "broadcast",
+			alt = bandAlt(field, R + (edge - R) * 0.15, R + (edge - R) * 0.5, rng:random()), angle = rng:random() * math.pi * 2,
+			name = ("%s relay %d"):format(def.names or field.name or fieldId, n) }
 	end
 	return out
 end
@@ -705,7 +699,6 @@ function Sat.keep(game, dt)
 	local u, w = game.universe, game.well
 	if not u or not w or dt <= 0 then return end
 	local clock = u.clock or 0
-	-- First pass: maintain all satellites (existing logic).
 	for _, e in ipairs(game.entities) do
 		local r = e.sat and not e.removed and not e.dead and Sat.get(u, e.sat)
 		local b = r and e.body
@@ -746,25 +739,21 @@ function Sat.keep(game, dt)
 			if not e.removed then b:setLinearVelocity(vx + (wx - vx) * k, vy + (wy - vy) * k) end
 		end
 	end
-	-- Second pass: broadcast satellites hail ships in range.
-	for _, e in ipairs(game.entities) do
-		local r = e.sat and not e.removed and not e.dead and Sat.get(u, e.sat)
-		if not r or r.kind ~= "broadcast" or Sat.dry(r) then goto nextEnd end
-		local sx, sy = e.body:getPosition()
-		if not sx then goto nextEnd end
-		for _, ship in ipairs(game.entities) do
-			if ship == game.player and not ship.dead and not ship.dockState then
-				local bx, by = ship.body:getPosition()
-				local dx, dy = bx - sx, by - sy
-				if dx * dx + dy * dy < Sat.broadcastRange * Sat.broadcastRange then
-					if Sat.mayHail(u, r, ship) then
-						local ch = Sat.broadcast(game, r, ship)
-						if ch then Sat.hailed(u, r, ship) end
-					end
+	-- Broadcast satellites hail the player as they pass (in flight only).
+	local p = game.player
+	local pb = p and not p.dead and not p.removed and not p.comms and not p.dockState and game.state ~= "docked" and p.body
+	if pb and not pb:isDestroyed() then
+		local px, py = pb:getPosition()
+		local R2 = Sat.broadcastRange * Sat.broadcastRange
+		for _, e in ipairs(game.entities) do
+			local r = e.sat and not e.removed and not e.dead and e.body and Sat.get(u, e.sat)
+			if r and r.kind == "broadcast" and not e.body:isDestroyed() then
+				local sx, sy = e.body:getPosition()
+				if (sx - px) ^ 2 + (sy - py) ^ 2 < R2 and Sat.mayHail(u, r) then
+					if Sat.broadcast(game, e, p) then break end
 				end
 			end
 		end
-		::nextEnd::
 	end
 end
 

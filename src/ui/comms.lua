@@ -120,10 +120,11 @@ local function drawChip(game,ch)
  local pulse=.6+.4*math.abs(math.sin(game.time*3))
  lg.setFont(HUD.font(13))
  lg.setColor(HUD.AQUA[1],HUD.AQUA[2],HUD.AQUA[3],pulse)
- lg.print('HAIL',r.x+12,r.y+9)
+ local n=ch.script.notice
+ lg.print(n and n.chip or 'HAIL',r.x+12,r.y+9)
  lg.setColor(HUD.INK)
- local who=Comms.factionName(game,ch.speaker)..' '..Comms.nameOf(ch.speaker)
- lg.printf(who..'   [C] answer',r.x+56,r.y+9,r.w-110,'left')
+ local who=Comms.factionName(game,ch.speaker)..' '..Comms.nameOf(ch.speaker,game)
+ lg.printf(who..'   [C] '..(n and n.verb or 'answer'),r.x+56,r.y+9,r.w-110,'left')
  lg.setColor(HUD.WARN)
  lg.printf(timer(ch),r.x,r.y+9,r.w-12,'right')
 end
@@ -136,7 +137,7 @@ function UI.draw(game)
  local L=layout(game,ch)
  Station.panel(L.x,L.y,L.w,L.h)
  local other=ch.speaker.isPlayer and ch.listener or ch.speaker
- Station.ledgerText(L.x,L.y,Comms.factionName(game,other)..' \194\183 '..Comms.nameOf(other),'Comms channel open')
+ Station.ledgerText(L.x,L.y,Comms.factionName(game,other)..' \194\183 '..Comms.nameOf(other,game),'Comms channel open')
  lg.setFont(HUD.font(16));lg.setColor(HUD.WARN)
  lg.printf(timer(ch),L.x,L.y+9,L.w-44,'right')
  -- a countdown bar under the header

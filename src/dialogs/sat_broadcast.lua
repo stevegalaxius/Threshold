@@ -1,162 +1,94 @@
--- Broadcast satellite dialog (src/dialogs/sat_broadcast.lua): a satellite
--- hails passing ships with propaganda, market alerts, or crisis warnings.
---
--- ch.v carries the satellite record and its configured messages:
---   ch.v.sat       the satellite record (Sat.get)
---   ch.v.freq      the broadcast frequency number
---   ch.v.msgs      table of { text, type } message entries. type is one of:
---                    'propaganda' (faction loyalty), 'market' (price/trade),
---                    'crisis' (raids, blockades, alerts).
---   ch.v.idx       current message index (1-based)
---
--- The satellite "speaks" through {speaker.name} and {speaker.faction} tokens
--- resolved from the satellite record and its planet's controller.
+--[[
+	A broadcast satellite's hail (src/satellites.lua, Sat.broadcast): a
+	satellite calls out to the passing player on its frequency and, if they
+	tune in, plays its owner's paper: headlines, the area's price watch,
+	station idents (Sat.broadcastItems). It's one-way: the player listens,
+	skips on, tunes out, or jams it.
 
-local T = require('src.tuning')
+	ch.v (set by Sat.broadcast):
+	  sat       the satellite's id (its record: Sat.get)
+	  satName, area, owner, freq   for the text
+	  items     { text, kind } to play, kind 'news' | 'market' | 'ident'
+	  idx       the item playing now (0 before the first)
 
--- Cycle through messages: go to the next one, or end when we've shown them all.
-local function nextMsg(ch)
- ch.v.idx = ch.v.idx + 1
- if ch.v.idx <= #ch.v.msgs then return ch.v.idx end
- return 'end'
+	The speaker is the satellite's husk, so the channel drops if it's shot
+	down (Comms.update: lost contact); flying out of range fades it out.
+
+	Jamming is free to do but not unseen: the owner loses a little standing
+	with the player and the satellite stays silent for Sat.jamQuiet.
+]]
+local T=require('src.tuning')
+
+local KIND={news='NEWS',market='MARKET',ident='STATION'}
+
+local function Sat() return require('src.satellites') end
+local function item(ch) return ch.v.items[ch.v.idx] end
+local function more(ch) return ch.v.idx<#ch.v.items end
+
+-- Out of reach: the speaker's husk farther than twice the hail range.
+local function outOfRange(ch)
+ local a,b=ch.speaker.body,ch.listener.body
+ if not a or not b or a:isDestroyed() or b:isDestroyed() then return false end
+ local ax,ay=a:getPosition();local bx,by=b:getPosition()
+ local R=Sat().broadcastRange*2
+ return (ax-bx)^2+(ay-by)^2>R*R
 end
+local function fading(ch) if outOfRange(ch) then return 'faded' end end
 
--- Whether to show the jam option: only if the satellite is still working.
-local function jamShown(ch)
- local Sat = require('src.satellites')
- local r = ch.v.sat
- return r and not r.lost
-end
+local function jam(ch) return 'jam' end
+local function canJam(ch) return Sat().faction(Sat().get(ch.game.universe,ch.v.sat))~=nil end
 
 return {
- start = 'hail',
- nodes = {
-  -- Opening hail: satellite announces itself.
-  hail = {
-   text = '"Broadcast satellite {sat.name} on frequency {freq}. All local vessels are advised to monitor this channel."',
-   timeout = T.inspectWindow,
-   onTimeout = 'ignored',
-   tick = function(ch)
-    -- Close if the satellite husk was shot off the map.
-    local Sat = require('src.satellites')
-    local e = ch.v.satEntity
-    if e and (e.removed or e.dead or (e.body and e.body:isDestroyed())) then
-     ch.v.channelLost = true
-     return 'lost'
-    end
-   end,
-   npc = function(ch) return 2 end,
-   options = {
-    { "Listen", go = 'msg_1' },
-    { "Jam signal", show = jamShown, pick = function(ch) return 'jam' end },
-    { "Ignore" },
+ start='hail',
+ notice={title='Broadcast: ',text='Press C to tune in',chip='BCAST',verb='tune in'},
+ nodes={
+  hail={
+   text='"{satName}, broadcasting for {owner} on {freq} MHz. All vessels in {area}, tune in for traffic and market news."',
+   timeout=T.inspectWindow,onTimeout='ignored',
+   tick=fading,
+   options={
+    {'Tune in',pick=function(ch) ch.v.idx=1;return 'play' end},
+    {'Jam the signal',show=canJam,pick=jam},
+    {'Tune out',go='tuned_out'},
    },
   },
 
-  -- Individual message nodes: each shows one message and offers next/end/jam.
-  -- The type label (propaganda, market, crisis) is stored in ch.v.msgs[idx].type
-  -- and shown in the "Next message" label so the player can skip what they don't want.
-  msg_1 = {
-   hold = true,
-   tick = function(ch)
-    if ch.v.channelLost then return 'lost' end
+  -- One item a visit: the node re-enters itself for the next.
+  play={
+   hold=true,
+   tick=fading,
+   text=function(ch)
+    local it=item(ch)
+    if not it then return '"Nothing further on this frequency."' end
+    return ('[%s] %s'):format(KIND[it.kind] or 'BULLETIN',it.text)
    end,
-   options = function(ch)
-    local m = ch.v.msgs and ch.v.msgs[ch.v.idx]
-    local typeLabel = m and m.type and (' [' .. m.type:upper() .. ']') or ''
-    local nextLabel = ch.v.idx < #ch.v.msgs and ('Next message' .. typeLabel) or 'End transmission'
-    local opts = {
-     { nextLabel, show = function() return ch.v.idx < #ch.v.msgs end, pick = function(ch) return nextMsg(ch) end },
-     { "End transmission", pick = function(ch) return ch.v.idx < #ch.v.msgs and 'msg_' .. ch.v.idx or 'end' end },
-    }
-    if jamShown(ch) then opts[#opts + 1] = { "Jam signal", pick = function(ch) return 'jam' end } end
-    return opts
-   end,
-  },
-  msg_2 = {
-   hold = true,
-   tick = function(ch)
-    if ch.v.channelLost then return 'lost' end
-   end,
-   options = function(ch)
-    local m = ch.v.msgs and ch.v.msgs[ch.v.idx]
-    local typeLabel = m and m.type and (' [' .. m.type:upper() .. ']') or ''
-    local nextLabel = ch.v.idx < #ch.v.msgs and ('Next message' .. typeLabel) or 'End transmission'
-    local opts = {
-     { nextLabel, show = function() return ch.v.idx < #ch.v.msgs end, pick = function(ch) return nextMsg(ch) end },
-     { "End transmission", pick = function(ch) return ch.v.idx < #ch.v.msgs and 'msg_' .. ch.v.idx or 'end' end },
-    }
-    if jamShown(ch) then opts[#opts + 1] = { "Jam signal", pick = function(ch) return 'jam' end } end
-    return opts
-   end,
-  },
-  msg_3 = {
-   hold = true,
-   tick = function(ch)
-    if ch.v.channelLost then return 'lost' end
-   end,
-   options = function(ch)
-    local m = ch.v.msgs and ch.v.msgs[ch.v.idx]
-    local typeLabel = m and m.type and (' [' .. m.type:upper() .. ']') or ''
-    local nextLabel = ch.v.idx < #ch.v.msgs and ('Next message' .. typeLabel) or 'End transmission'
-    local opts = {
-     { nextLabel, show = function() return ch.v.idx < #ch.v.msgs end, pick = function(ch) return nextMsg(ch) end },
-     { "End transmission", pick = function(ch) return ch.v.idx < #ch.v.msgs and 'msg_' .. ch.v.idx or 'end' end },
-    }
-    if jamShown(ch) then opts[#opts + 1] = { "Jam signal", pick = function(ch) return 'jam' end } end
-    return opts
-   end,
-  },
-  msg_4 = {
-   hold = true,
-   tick = function(ch)
-    if ch.v.channelLost then return 'lost' end
-   end,
-   options = function(ch)
-    local m = ch.v.msgs and ch.v.msgs[ch.v.idx]
-    local typeLabel = m and m.type and (' [' .. m.type:upper() .. ']') or ''
-    local nextLabel = ch.v.idx < #ch.v.msgs and ('Next message' .. typeLabel) or 'End transmission'
-    local opts = {
-     { nextLabel, show = function() return ch.v.idx < #ch.v.msgs end, pick = function(ch) return nextMsg(ch) end },
-     { "End transmission", pick = function(ch) return ch.v.idx < #ch.v.msgs and 'msg_' .. ch.v.idx or 'end' end },
-    }
-    if jamShown(ch) then opts[#opts + 1] = { "Jam signal", pick = function(ch) return 'jam' end } end
-    return opts
-   end,
-  },
-
-  -- Player jams the signal: standing penalty with the satellite's faction,
-  -- the satellite logs the interference and cuts the channel.
-  jam = {
-   text = '"Unauthorized jamming detected. Incident logged. This channel is monitored."',
-   tick = function(ch)
-    local Rep = require('src.reputation')
-    local Sat = require('src.satellites')
-    local r = ch.v.sat
-    local f = Sat.faction(r)
-    if f then Rep.addStanding(ch.game.universe, f, -5) end
-    if ch.listener.isPlayer then
-     ch.game:toast('SIGNAL JAMMED', 2)
+   options=function(ch)
+    local nxt=ch.v.items[ch.v.idx+1]
+    local opts={}
+    if nxt then
+     opts[#opts+1]={'Next: '..(KIND[nxt.kind] or 'bulletin'):lower(),pick=function(ch) ch.v.idx=ch.v.idx+1;return 'play' end}
+    else
+     opts[#opts+1]={'End of bulletin',go='signoff'}
     end
+    opts[#opts+1]={'Tune out',go='tuned_out'}
+    if canJam(ch) then opts[#opts+1]={'Jam the signal',pick=jam} end
+    return opts
    end,
-   options = { { 'Acknowledged' } },
   },
 
-  -- Player ignored the hail: channel closes quietly.
-  ignored = { text = '"...Channel closing."' },
-
-  -- Satellite was destroyed: cuts to static.
-  lost = {
-   text = '"...[SIGNAL LOST — carrier wave disrupted]..."',
-   tick = function(ch)
-    if ch.listener.isPlayer then
-     ch.game:toast('BROADCAST SATELLITE DESTROYED', 2)
-    end
+  jam={
+   enter=function(ch)
+    local u=ch.game.universe
+    local r=Sat().get(u,ch.v.sat)
+    local f=Sat().faction(r)
+    if r then r.jammedAt=u.clock or 0 end
+    if f then require('src.reputation').addStanding(u,f,-2) end
    end,
-   options = { { 'Channel closed' } },
+   text='"-- carrier lost --" The {owner} channel dissolves into static. Someone will have logged that.',
   },
-
- -- Ending: the broadcast finishes naturally.
-  ['end'] = { text = '"End of transmission. Broadcast satellite {sat.name}, standing by."' },
+  ignored={text='"{satName}, standing by on {freq}."'},
+  tuned_out={text='You tune out. {satName} keeps broadcasting to the empty lanes.'},
+  signoff={text='"That is all from {satName}. {owner}: safe lanes, open markets."'},
+  faded={text='"...{freq}... ...k-- ..." The signal fades as you leave range.'},
  },
 }

@@ -71,14 +71,22 @@ function Comms.extend(scriptId,nodeId,fn)
 end
 
 -- Who a ship is, for tokens and the window header.
-function Comms.nameOf(e)
+-- A satellite (e.sat) speaks as itself: its record's name, its planet's faction.
+local function satRecord(game,e)
+ return e and e.sat and game and require('src.satellites').get(game.universe,e.sat)
+end
+function Comms.nameOf(e,game)
  if not e then return '?' end
+ local r=satRecord(game,e)
+ if r then return r.name or 'satellite' end
  if e.isPlayer then return e.hull and e.hull.name or 'your ship' end
  return e.def and e.def.name or (e.hull and e.hull.name) or 'unknown ship'
 end
 function Comms.factionOf(game,e)
  local Rep=require('src.reputation')
  if not e or e.isPlayer then return nil end
+ local sr=satRecord(game,e)
+ if sr then return require('src.satellites').faction(sr) end
  local r=e.alifeRecord or (e.alifeId and game.universe.npcs[e.alifeId])
  local grant=r and require('src.npc_access').policeGrant(r,game.fieldId)
  local f=grant and grant.issuer or Rep.crewFaction(r)
@@ -92,7 +100,7 @@ end
 
 local function side(ch,which)
  local e=ch[which]
- return {name=Comms.nameOf(e),faction=Comms.factionName(ch.game,e)}
+ return {name=Comms.nameOf(e,ch.game),faction=Comms.factionName(ch.game,e)}
 end
 function Comms.format(ch,s)
  if type(s)=='function' then s=s(ch) end
@@ -110,12 +118,20 @@ end
 
 function Comms.node(ch) return ch.script.nodes[ch.node] end
 
+-- A node's own options: a list, or function(ch) -> list for ones that
+-- change with the conversation.
+local function nodeOptions(ch,node)
+ local o=node and node.options
+ if type(o)=='function' then o=o(ch) end
+ return o or {}
+end
+
 -- The options shown for the current node: { label, enabled, option }.
 function Comms.options(ch)
  local node=Comms.node(ch)
  local out={}
  local list={}
- for _,o in ipairs(node and node.options or {}) do list[#list+1]=o end
+ for _,o in ipairs(nodeOptions(ch,node)) do list[#list+1]=o end
  for _,fn in ipairs(Comms.extensions[ch.scriptId..'/'..tostring(ch.node)] or {}) do fn(ch,list) end
  for _,o in ipairs(list) do
   if not o.show or o.show(ch) then
@@ -147,7 +163,7 @@ function Comms.go(ch,nodeId)
    log(ch,'speaker',Comms.format(ch,node.text))
    local t=node.timeout;if type(t)=='function' then t=t(ch) end
    ch.deadline=t and ch.game.time+t or nil
-   ch.endAt=(not node.options or #node.options==0) and not node.hold and ch.game.time+Comms.T.endingLinger or nil
+   ch.endAt=#nodeOptions(ch,node)==0 and not node.hold and ch.game.time+Comms.T.endingLinger or nil
    ch.npcPicked=nil
    return
   end
@@ -197,16 +213,12 @@ function Comms.open(game,scriptId,speaker,listener,vars)
  local ch=attach(game,scriptId,speaker,listener,vars)
  Comms.go(ch,ch.script.start)
  if not ch.closed and listener.isPlayer then
-  -- regular ship hail
-  require('src.notify').post(game.universe,{kind='comms',title='Incoming hail: '..Comms.factionName(game,speaker)..' '..Comms.nameOf(speaker),
-   text='Press C to answer',key='comms:'..ch.id})
+  -- a script can word its own notice (a satellite's broadcast)
+  local who=Comms.factionName(game,speaker)..' '..Comms.nameOf(speaker,game)
+  local n=ch.script.notice
+  require('src.notify').post(game.universe,{kind='comms',title=(n and n.title or 'Incoming hail: ')..who,
+   text=n and n.text or 'Press C to answer',key='comms:'..ch.id})
   if Comms.onHail then Comms.onHail(game,ch) end
-  -- broadcast satellite: separate notification so the UI can distinguish
-  if speaker._satRecord and Comms.onBroadcast then
-   require('src.notify').post(game.universe,{kind='comms',title='Broadcast from '..(speaker.name or 'satellite'),
-    text='Press C to listen',key='comms:'..ch.id})
-   Comms.onBroadcast(game, ch)
-  end
  end
  return ch
 end
