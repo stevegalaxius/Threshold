@@ -14,7 +14,7 @@ W.stations = {
 		{ id = "station:mercury_1", facilities={roll_steel={capacity=480},shipworks={capacity=10}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, name = "Terminator Station", layout = "estates_palace" },
 		{ id = "station:mercury_2", facilities={ceramic_works={capacity=8},silicon_refinery={capacity=24,surface=true}}, marketId = "market:mercury_2", services = { "market", "shipyard", "hangar" }, spin = -0.05, phase = 1.2943951023931953, name = "Haephestus Logistics", layout = "customs_1", hub = true  },
 		{ id = "station:mercury_3", facilities={engines_works={capacity=1},brute_assembly={capacity=2}}, marketId = "market:mercury_3", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.03, phase = 3.3887902047863905, name = "Brute Industries Shipyard", layout = "shipyard_1" },
-		{ id = "station:mercury_4", facilities={bays_works={capacity=2},drones={capacity=8}}, marketId = "market:mercury_4", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, name = "Ashgrove Drone Foundry", layout = "estates_manor" },
+		{ id = "station:mercury_4", facilities={bays_works={capacity=2},utility_works={capacity=2},drones={capacity=8}}, marketId = "market:mercury_4", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, name = "Ashgrove Drone Foundry", layout = "estates_manor" },
 		{ id = "station:mercury_5", marketId = "market:mercury_5", services = { "market", "hangar" }, spin = 0.04, name = "Daybreak Commons", layout = "estates_chandelier",
 		  residential = { population = 3000, homes = 4, routes = {
 			{ to = "station:mercury_1", kind = "work", weight = 3 },
@@ -45,7 +45,7 @@ W.stations = {
 	},
 	
 	luna = {
-		{ id = "station:luna_1", facilities={silicon_refinery={capacity=128,surface=true},electronics={capacity=48},coil_works={capacity=8},utility_works={capacity=2}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:luna_1", name = "Thule Prime", layout = "estates_palace"   },
+		{ id = "station:luna_1", facilities={silicon_refinery={capacity=128,surface=true},electronics={capacity=48},coil_works={capacity=8}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:luna_1", name = "Thule Prime", layout = "estates_palace"   },
 		{ id = "station:luna_2", services = { "market", "shipyard", "hangar" }, marketId = "market:luna_2", spin = -0.05, phase = 2.3415926535897933, name = "The Apollo Heritage Foundation", layout = "estates_palace"   },
 		-- residential (src/passengers.lua): housing only, no industry or ship sales
 		{ id = "station:luna_3", marketId = "market:luna_3", services = { "market", "hangar" }, spin = 0.04, phase = 3.9, name = "Tranquility Commons", layout = "estates_quadrangle",
@@ -152,7 +152,7 @@ W.stations = {
 		{ id = "station:pluto_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, primary = true, uses = { pirateBase = true }, layout = "jovian_kink", marketId = "market:pluto_1", name = "Milliways Freeport", hub = true },
 	},
 	ring = {
-		{ id = "station:ring_1", facilities={coil_works={capacity=8}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.04, primary = true, name = "Providence", marketId = "market:ring_1", layout = "ring_horseshoe",
+		{ id = "station:ring_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.04, primary = true, name = "Providence", marketId = "market:ring_1", layout = "ring_horseshoe",
 		  -- the big ring is a town as well as a market (src/passengers.lua)
 		  residential = { population = 5000, homes = 12, routes = {
 			{ to = "station:ring_2", kind = "work", weight = 3 },

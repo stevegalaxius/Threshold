@@ -33,8 +33,11 @@ Rep.FACTIONS = {
 	ceres     = { name = "Ceres Concern" },
 	milliways = { name = "Milliways" },
 	bowman    = { name = "Bowman Atmospherics" },
+	-- Providence (the belt hub across the Sun from Ceres): a neutral
+	-- exchange open to every house and owned by all of them jointly.
+	providence = { name = "Providence" },
 }
-Rep.ORDER = { "estates", "zhuhai", "diwan", "jove", "ceres", "milliways", "bowman" }
+Rep.ORDER = { "estates", "zhuhai", "diwan", "jove", "ceres", "milliways", "bowman", "providence" }
 
 -- The cartel and how each major power treats it. A hostile power embargoes
 -- it (Rep.embargoed: no trade with cartel stations, no contraband in its
@@ -123,6 +126,7 @@ Rep.AREAS = {
 -- Single nodes that differ from their area (secondary factions' holdings).
 Rep.NODES = {
 	["station:pluto_1"] = "milliways",
+	["station:ring_1"] = "providence",
 }
 
 -- Tiers, lowest first: the first whose max the value is under.

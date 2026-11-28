@@ -204,8 +204,8 @@ D.moduleLines={
  drills={maker='Ceres Concern',modules={{'drill_s_base',6,3500},{'drill_m_base',14,9000},{'drill_l_base',34,24000}}},
  engines={modules={{'flit_engine',6,3000,1,1},{'mule_engine',16,9000,2,2},{'cinder_drive',40,26000,4,4}}},
  reactors={modules={{'ember_reactor',5,2500,1,1,1},{'kiln_reactor',14,8000,2,2,1},{'forge_reactor',32,21000,4,4,1}}},
- -- computers and utility gear, built by the Estates (Thule Prime, Luna,
- -- beside its electronics and coils): police yards and outfitters buy these. Fixed inputs here:
+ -- computers and utility gear, built by the Estates at Ashgrove Drone
+ -- Foundry (Mercury) from Luna's electronics and coils: police yards and outfitters buy these. Fixed inputs here:
  -- 2 electronics each, and coils in the scanner and the tug beam.
  utility={maker='Estates Military',modules={{'nav_computer',1,2500,nil,nil,nil,2},{'fire_computer',1,6000,nil,nil,nil,2},
   {'scanner',1,4500,1,nil,nil,2},{'tug_beam',3,3500,1,nil,nil,2},{'flare_pod',2,3000,nil,nil,nil,2}}},
