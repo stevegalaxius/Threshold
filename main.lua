@@ -23,6 +23,7 @@ local Render = require("src.render")
 local HUD = require("src.hud")
 local Debug = require("src.debugui")
 local Cargo = require("src.ui.cargo")
+local CommsUI = require("src.ui.comms")
 local Orrery = require("src.ui.orrery")
 local LocalMap = require("src.ui.localmap")
 local Traffic=require("src.ui.npc_traffic")
@@ -77,7 +78,7 @@ function love.load(args)
 	Debug.init()
 	game = Game.new()
 	-- Test run: love . --test (tests/fast.lua, about half a minute).
-	local suites = { ["--test"] = "tests.fast", ["--soak"] = "tests.soak", ["--dockprobe"] = "tests.dock_probe", ["--playerdock"] = "tests.player_dock_probe" }
+	local suites = { ["--test"] = "tests.fast", ["--commstest"] = "tests.comms_run", ["--commsshot"] = "tests.comms_shot", ["--soak"] = "tests.soak", ["--dockprobe"] = "tests.dock_probe", ["--playerdock"] = "tests.player_dock_probe" }
 	-- Economy model (src/economy_model.lua): --econmodel prints it, --econcapture
 	-- measures the service demand it uses (data/economy_baseline.lua).
 	for _, a in ipairs(args or {}) do
@@ -142,7 +143,7 @@ function love.update(dt, trace)
 	if autotest then
 		intent = autotest.intent(game, dt)
 	else
-		intent = Input.read(game, Debug.blocksMouse() or Cargo.isOpen(game) or Orrery.isOpen(game) or LocalMap.isOpen(game) or Traffic.isOpen(game), Debug.blocksKeyboard() or LocalMap.isOpen(game) or Traffic.isOpen(game))
+		intent = Input.read(game, Debug.blocksMouse() or CommsUI.blocksMouse(game) or Cargo.isOpen(game) or Orrery.isOpen(game) or LocalMap.isOpen(game) or Traffic.isOpen(game), Debug.blocksKeyboard() or LocalMap.isOpen(game) or Traffic.isOpen(game))
 		-- With the cargo screen up the mouse is busy, so hold the aim
 		-- straight ahead instead of chasing the cursor. The camera keeps
 		-- the lead it had when the screen opened, so the view doesn't jump.
@@ -192,7 +193,7 @@ function love.update(dt, trace)
 	Pose.interpolate(game, accumulator / STEP)
 	game:frame(dt, camAimX, camAimY)
 	Cargo.update(game)
-	love.mouse.setVisible(Debug.blocksMouse() or Cargo.isOpen(game) or Orrery.isOpen(game) or LocalMap.isOpen(game) or Traffic.isOpen(game))
+	love.mouse.setVisible(Debug.blocksMouse() or CommsUI.wantsCursor(game) or Cargo.isOpen(game) or Orrery.isOpen(game) or LocalMap.isOpen(game) or Traffic.isOpen(game))
 
 	if autotest then autotest.update(game, dt) end
 end
@@ -226,6 +227,7 @@ function love.draw()
 		Cargo.draw(game)
 		HUD.drawToasts(game, Cargo.toastY(game))
 	end
+	if game.state ~= "docked" then CommsUI.draw(game) end
 	if game.state ~= "docked" then Orrery.draw(game) end
 	Pause.draw(game)
 	Debug.draw()
@@ -253,6 +255,7 @@ function love.keypressed(key)
 	if LocalMap.keypressed(game, key) then return end
 	if key == "f8" then PerfSnap.snap(game, love.keyboard.isDown("lshift", "rshift")); return end
 	if Cargo.keypressed(game, key) then return end
+	if CommsUI.keypressed(game, key) then return end
 	if game.state == "docked" and (key == "e" or key == "return" or key == "kpenter") then game:undock(); return end
 	if key == "escape" then Pause.toggle(game)
 	elseif key == "h" then HUD.showHelp = not HUD.showHelp
@@ -284,6 +287,7 @@ function love.mousepressed(x, y, button)
 	if Pause.mousepressed(game, x, y, button) then return end
 	if LocalMap.mousepressed(game, x, y, button) then return end
 	if Orrery.mousepressed(game, x, y, button) then return end
+	if CommsUI.mousepressed(game, x, y, button) then return end
 	Cargo.mousepressed(game, x, y, button)
 end
 

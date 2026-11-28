@@ -68,6 +68,7 @@ return function(game)
  require("tests.dock_traffic")()
  require("tests.tractor_flow")()
  require("tests.notables")()
+ require("tests.comms")(fresh())
  local g=fresh()
  for _,id in ipairs(Fields.list) do
   local ok,err=xpcall(function() g:loadField(id);run(g,1) end,debug.traceback)

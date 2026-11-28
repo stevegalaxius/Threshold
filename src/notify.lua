@@ -27,6 +27,7 @@ Notify.ICONS={
  news='electronics',
  subscription='electronics',
  police='patch_kit',
+ comms='electronics',
 }
 
 function Notify.state(u)

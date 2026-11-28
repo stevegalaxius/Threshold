@@ -671,6 +671,24 @@ drawScanTip = function(game, mx, my)
 	local p = game.player
 	local sc = p and not p.dead and game:computer(p, "scanner")
 	if not sc then return end
+	-- a ship under the cursor: its hold, once the scan completes (src/ship_scan.lua)
+	local shipLines = require("src.ship_scan").lines(game, mx, my)
+	if shipLines then
+		lg.setFont(font(12))
+		local w = 0
+		for _, l in ipairs(shipLines) do w = max(w, lg.getFont():getWidth(l[1])) end
+		w = w + 16
+		local h = #shipLines * 16 + 8
+		local sw, sh = lg.getDimensions()
+		local x, y = min(mx + 16, sw - w - 4), min(my + 16, sh - h - 4)
+		lg.setColor(0.02, 0.06, 0.09, 0.9)
+		lg.rectangle("fill", x, y, w, h, 5, 5)
+		for i, l in ipairs(shipLines) do
+			lg.setColor(i == 1 and { 0.55, 0.9, 1 } or l[2] and WARN or INK)
+			lg.print(l[1], x + 8, y + 4 + (i - 1) * 16)
+		end
+		return
+	end
 	local wx, wy = game.camera:toWorld(mx, my)
 	local px, py = Pose.position(p)
 	local target

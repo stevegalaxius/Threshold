@@ -179,11 +179,14 @@ module { id = "tug_beam",   name = "Tug Beam",      maker = "Halcyon Arms",     
 -- nav: radarRange, lookahead (seconds of collision prediction).
 -- ordnance: radarRange, predictionTime (maximum projectile flight time for a lead solution).
 -- guidance: radarRange, lockCone (half-angle in degrees; retention uses 1.5x).
--- scanner: radarRange (how far it reads what's inside wrecks and containers).
+-- scanner: radarRange (how far it reads what's inside wrecks and containers),
+-- shipRange (how far it reads another ship's hold), scanTime (seconds held
+-- on a ship to read it), depth (true: sees into containers carried in a
+-- hold). Police inspections use it too (src/contraband.lua).
 -- drone: uplinkRange, controlLimit (largest drone control cost for direct piloting:
 -- S=1, M=2, L=4; does not replace the launching bay's capacity).
 module { id = "nav_computer",  name = "Nav Computer",      maker = "Halcyon Arms",       family = "utility", size = "any", mass = 1, powerDraw = 1, computer = "nav", radarRange = 12000, lookahead = 2, price = 2500 }
 module { id = "fire_computer", name = "Ordnance Computer", maker = "Estates Military",   family = "utility", size = "any", mass = 1, powerDraw = 2, computer = "ordnance", radarRange = 6000, predictionTime = 4, price = 6000 }
 module { id = "guidance_computer", name = "Missile Guidance", maker = "Estates Military", family = "utility", size = "any", mass = 2, powerDraw = 2, computer = "guidance", radarRange = 4000, lockCone = 25, price = 7000 }
-module { id = "scanner",       name = "Deep Scanner",      maker = "Halcyon Arms",       family = "utility", size = "any", mass = 1, powerDraw = 2, computer = "scanner", radarRange = 3000, price = 4500 }
+module { id = "scanner",       name = "Deep Scanner",      maker = "Halcyon Arms",       family = "utility", size = "any", mass = 1, powerDraw = 2, computer = "scanner", radarRange = 3000, shipRange = 1800, scanTime = 3, depth = true, price = 4500 }
 module { id = "drone_uplink",  name = "Drone Uplink",      maker = "Nova Syndicate",     family = "utility", size = "any", mass = 3, powerDraw = 3, computer = "drone", uplinkRange = 4000, controlLimit = 4, price = 9000 }

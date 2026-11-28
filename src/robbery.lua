@@ -10,6 +10,7 @@ local T=require('src.tuning')
 local data=require('src.data')
 local Handover=require('src.handover')
 local R={}
+local function Comms() return require('src.comms') end
 
 -- Trade goods: everything but ammunition and reactor fuel.
 local function goods(e)
@@ -64,6 +65,7 @@ function R.consider(game,pirate,target)
    require('src.alife_trace').entity(game,pirate,'robbery',('paid %d by %s -> spared'):format(d.paid,tostring(target.alifeId or 'player')))
    pirate.combatTarget,pirate.lock=nil,nil
    announce(game,pirate,target,'"Wise choice. Move along."','Robbed: '..d.paid..' cargo taken')
+   Comms().go(d.channel,'paid')
    local wc=pirate.alifeId and game.universe.npcs[pirate.alifeId]
    if wc and wc.wildcat then require('src.wildcats').harm(game.universe,wc) end
    return false
@@ -72,20 +74,17 @@ function R.consider(game,pirate,target)
    d.refused=true
    require('src.alife_trace').entity(game,pirate,'robbery',tostring(target.alifeId or 'player')..' did not pay -> attack')
    announce(game,pirate,target,'"You were warned." They\'re opening fire.','Robbery refused')
+   if d.channel and d.channel.node~='refused' then Comms().go(d.channel,'refused') end
    return true
-  end
-  if target.isPlayer and game.time>=(d.nag or 0) then
-   d.nag=game.time+3
-   announce(game,pirate,target,('Jettison %d more cargo: %ds left'):format(d.amount-d.paid,math.ceil(d.deadline-game.time)))
   end
   return false
  end
- if d then Handover.close(d) end
+ if d then Comms().close(d.channel,'retargeted');Handover.close(d) end
  local have=goods(target)
  if have==0 then pirate.spared[target]=game.time+T.robberySpare;return false end
  if target.asked then return true end   -- already handing something over to someone
  d=Handover.open(game,'robbery',pirate,target,math.max(1,math.ceil(have*T.robberyShare)),T.robberyWindow,isGood)
- announce(game,pirate,target,('"Jettison %d cargo or be fired upon."'):format(d.amount))
+ d.channel=Comms().open(game,'robbery',pirate,target,{request=d,amount=d.amount})
  require('src.alife_trace').entity(game,pirate,'robbery',('demanded %d from %s'):format(d.amount,tostring(target.alifeId or 'player')))
  require('src.alife_trace').entity(game,target,'robbery',('%s demanded %d cargo'):format(tostring(pirate.alifeId),d.amount))
  return false
@@ -96,11 +95,38 @@ function R.isSpared(game,pirate,o)
  return t and game.time<t or false
 end
 
+-- A demand saved mid-conversation (src/comms.lua): reopen the request.
+function R.restore(game,ch,saved)
+ local pirate,target=ch.speaker,ch.listener
+ if target.asked or pirate.request then return false end
+ local left=ch.deadline and ch.deadline-game.time or T.robberyWindow
+ local d=Handover.open(game,'robbery',pirate,target,saved.amount,left,isGood)
+ d.paid,d.refused,d.channel=saved.paid or 0,saved.refused,ch
+ if not target.isPlayer then d.answered=true end
+ ch.v={request=d,amount=saved.amount,owed=saved.owed,haggled=saved.haggled}
+ return true
+end
+
+-- The player (or an NPC) hands over what's still owed.
+function R.pay(game,giver,d)
+ local _,list=goods(giver)
+ return Handover.give(game,giver,list,math.max(0,d.amount-d.paid))
+end
+-- Haggling: a chance to cut the demand; failing halves the time left.
+function R.haggle(game,d)
+ if math.random()<T.robberyHaggle then
+  d.amount=math.max(d.paid+1,math.ceil(d.amount*T.robberyHaggleCut))
+  return true
+ end
+ d.deadline=game.time+(d.deadline-game.time)*.5
+ return false
+end
+
 -- An NPC victim's answer, decided once per demand by the offline rule's
--- odds (with any covering station's guns on its side).
-function R.respond(game,e)
- local d=e.asked
- if not d or d.kind~='robbery' or d.closed or d.answered or Handover.gone(d.asker) then return end
+-- odds (with any covering station's guns on its side). Returns the robbery
+-- script's option: 1 jettison, or the last (refuse).
+function R.npcAnswer(game,e,d)
+ if not d or d.closed or d.answered or Handover.gone(d.asker) then return end
  local pirate=d.asker
  d.answered=true
  local E=require('src.encounters')
@@ -111,13 +137,21 @@ function R.respond(game,e)
   local _,guns=E.coveringStation(mine,theirs,game.universe.clock)
   odds=E.odds(mine,theirs,guns*T.offlineStationAccuracy)
  end
- if odds>=require('src.personality').engageOdds(mine) then e.aggressor=pirate
-  require('src.alife_trace').entity(game,e,'robbery',('odds %.0f%% -> refuse and fight'):format(odds*100));return end
+ if odds>=require('src.personality').engageOdds(mine) then
+  require('src.alife_trace').entity(game,e,'robbery',('odds %.0f%% -> refuse and fight'):format(odds*100))
+  return #require('src.comms').options(d.channel)
+ end
  require('src.alife_trace').entity(game,e,'robbery',('odds %.0f%% -> comply'):format(odds*100))
- -- comply: dump the demanded share of goods
- local _,list=goods(e)
- Handover.give(game,e,list,d.amount)
  if mine then mine.taskStatus='robbed by pirates' end
+ return 1
+end
+-- Kept for the AI's call (src/ai.lua): the comms channel answers for NPCs
+-- now; a demand without one (shouldn't happen) still gets the old answer.
+function R.respond(game,e)
+ local d=e.asked
+ if not d or d.kind~='robbery' or d.closed or d.answered or d.channel then return end
+ local pick=R.npcAnswer(game,e,d)
+ if pick==1 then R.pay(game,e,d) elseif pick then e.aggressor=d.asker end
 end
 
 return R

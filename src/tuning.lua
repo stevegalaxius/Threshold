@@ -324,7 +324,8 @@ T.offlineEngageOdds, T.offlineEngageWindow = 0.6, 60
 T.offlineEscapeGain, T.offlineEscapeMax = 1.5, 0.8
 -- Robbery (robbery.lua): share of trade goods a pirate demands, seconds to
 -- comply, seconds a complying ship is spared afterwards.
-T.robberyShare, T.robberyWindow, T.robberySpare = 0.5, 15, 120
+T.robberyShare, T.robberyWindow, T.robberySpare = 0.5, 20, 120
+T.robberyHaggle, T.robberyHaggleCut = 0.4, 0.6   -- chance a haggle cuts the demand, and to what share
 -- Distress (distress.lua): how far a stranded ship's call reaches online,
 -- seconds between calls, seconds a helper has to deliver, and the share of
 -- its normal fuel reserve a stranded ship asks for.
@@ -744,4 +745,19 @@ T.courierRepLoss=10
 T.courierTrustValue=20000
 T.courierTrustDoubling=20
 T.courierBanRep=-40
+-- Contraband inspections (src/contraband.lua, src/dialogs/inspection.lua)
+T.inspectRange = 1400        -- px: a holding squad leader hails ships this close
+T.inspectChance = 0.6        -- chance a holding squad bothers with you
+T.inspectWindow = 25         -- s to answer a hail before it counts as running
+T.inspectScanTime = 6        -- s a scan takes; you have to stay in range
+T.inspectLeash = 2200        -- px: leave this far from the patrol mid-inspection and you're running
+T.inspectDetect = 0.9        -- chance a Deep Scanner finds contraband aboard
+T.inspectDetectByEye = 0.4   -- a patrol without one, looking by eye (and missing packed containers)
+T.inspectFine = 1.0          -- fine, as a share of the seized goods' value
+T.inspectStanding = 8        -- standing lost when caught
+T.inspectRunStanding = 15    -- standing lost for running
+T.wantedTime = 300           -- s that power's police shoot on sight after you run
+T.bribeMin, T.bribeShare, T.bribeStanding = 250, 0.4, 5
+T.bribeChance = { estates = 0.2, diwan = 0.35 }   -- by inspecting power
+
 return T

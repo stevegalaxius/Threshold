@@ -214,6 +214,7 @@ end
 --                vx, vy }, or the field's spawn point
 function Game:loadField(id, opts)
 	opts = opts or {}
+	require("src.comms").reset(true)   -- conversations hold this map's ships
 	Mining.unload(self)
 	self.miningNext = nil
 	self:captureALife(true)
@@ -2124,12 +2125,14 @@ function Game:eject(e, id, count, inner)
 	local side = (random() - 0.5) * e.hull.radius
 	if data.items[id].kind == "container" then
 		local back2 = e.tailX - 40
+		local boxes = {}
 		for _ = 1, count do
 			local box = self:spawnContainer(x + c * back2 - s * side, y + s * back2 + c * side, id, false, inner)
 			box.body:setLinearVelocity(vx - c * 60, vy - s * 60)
+			boxes[#boxes + 1] = box
 		end
 		self:toast(("-%d %s"):format(count, data.items[id].name), 1.2, "pickup")
-		events.emit("eject", e, id, count)
+		events.emit("eject", e, id, count, nil, boxes)
 		return
 	end
 	-- a VIP pushed out of the hold is an airlock (src/notables.lua): what
@@ -2138,10 +2141,11 @@ function Game:eject(e, id, count, inner)
 		require("src.notables").airlock(self)
 		id = "vip_remains"
 	end
-	require("src.loose").adopt(self, self:pickupView(x + c * back - s * side, y + s * back + c * side, id, count,
-		vx - c * 90 + (random() - 0.5) * 30, vy - s * 90 + (random() - 0.5) * 30))
+	local pickup = self:pickupView(x + c * back - s * side, y + s * back + c * side, id, count,
+		vx - c * 90 + (random() - 0.5) * 30, vy - s * 90 + (random() - 0.5) * 30)
+	require("src.loose").adopt(self, pickup)
 	self:toast(("-%d %s"):format(count, data.items[id].name), 1.2, "pickup")
-	events.emit("eject", e, id, count)
+	events.emit("eject", e, id, count, pickup)
 end
 
 -- A cargo container floating in space: a box with a grid hold of its own.
@@ -2400,6 +2404,10 @@ function Game:step(dt, sample)
 	if sample then markStep(sample, "sleepers") end
 	self:updateALife(nil,sample)
 	if sample then markStep(sample, "alife") end
+	-- ship-to-ship conversations, and police inspections that open them
+	require("src.comms").update(self)
+	require("src.contraband").update(self)
+	require("src.ship_scan").update(self)   -- Deep Scanner: ships in range
 	self:applyBoundary()
 	self:applyCurrent(dt)
 	require("src.satellites").keep(self, dt)
