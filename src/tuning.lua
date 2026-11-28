@@ -763,28 +763,28 @@ T.bribeChance = { estates = 0.2, diwan = 0.35 }   -- by inspecting power
 
 -- Station crises: drug demand that follows what a station is going through
 -- (src/crisis.lua). A use_* drug facility's authored capacity is its peak.
-T.crisisTick=300              -- s of game clock between crisis updates
+T.crisisTick=60               -- s of game clock between crisis updates
 T.crisisBaseUse=.3            -- share of the peak a calm station still uses
-T.crisisEase=.5               -- intensity moves at most this much a game hour
+T.crisisEase=3                -- intensity moves at most this much a game hour
 T.crisisHeldDecay=.5          -- a lapse in the condition takes back this much of the time it has held
 T.crisisFloor=.25             -- an active crisis is at least this intense
 T.crisisTradeCut=.35          -- stock of other goods given up at full intensity (food never)
 -- amphetamines: production pressure
 T.crisisBusyDocked=7          -- NPC ships docked (a half hour's average) before crews feel it; full at one and a half times this
-T.crisisBusyHours=2           -- game hours that has to last before a crisis starts
-T.crisisBusyResolveHours=3    -- and hours of quiet before it ends
+T.crisisBusyHours=.33          -- game hours that has to last before a crisis starts
+T.crisisBusyResolveHours=.25   -- and hours of quiet before it ends
 -- fentanyl: food shortage
 T.crisisFoodHours=2           -- under this many hours of food in store counts as short
-T.crisisFoodCheckHours=3
-T.crisisFoodResolveHours=2
+T.crisisFoodCheckHours=.33
+T.crisisFoodResolveHours=.25
 -- cannabinoid moss: no wildcats in the station's system
 T.crisisCalmWildcats=0        -- live wildcats the system can hold and still count as safe
-T.crisisCalmHours=8
-T.crisisCalmResolveHours=4
+T.crisisCalmHours=.75
+T.crisisCalmResolveHours=.33
 -- what a crisis does beyond the market
 T.crisisInspectBoost=.3       -- added to T.inspectChance near a station in an outlawed crisis
 T.crisisQuestMin=.4           -- intensity before a station posts a drug_crisis delivery
-T.crisisQuestHours=3          -- the delivery covers this many hours of its crisis use
+T.crisisQuestHours=1          -- the delivery covers this many hours of its crisis use
 T.crisisQuestMinAmount=6
 T.crisisQuestPremium=1.3      -- unit pay as a share of local price, at the crisis floor
 T.crisisQuestUrgency=.7       -- added to the premium at full intensity
